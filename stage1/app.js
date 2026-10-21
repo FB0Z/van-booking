@@ -11,7 +11,12 @@ const texts = {
     pm: "p. m.",
     loading: "Cargando salidas...",
     offline: "Sin conexión. Revisa tu señal e intenta de nuevo.",
-    retry: "Intentar de nuevo"
+    retry: "Intentar de nuevo",
+    nameLabel: "Tu nombre (sin apellido)",
+    stopLabel: "¿Dónde subes?",
+    confirm: "Confirmar",
+    cancel: "Cancelar",
+    nameMissing: "Escribe tu nombre."
 
   },
   en: {
@@ -25,7 +30,12 @@ const texts = {
     pm: "pm",
     loading: "Loading departures...",
     offline: "No connection. Check your signal and try again.",
-    retry: "Try again"
+    retry: "Try again",
+    nameLabel: "Your first name (no surname)",
+    stopLabel: "Where do you board?",
+    confirm: "Confirm",
+    cancel: "Cancel",
+    nameMissing: "Please type your first name."
 
   }
 };
@@ -33,6 +43,7 @@ const texts = {
 // 2. REAL data from Supabase. Starts empty and is filled by loadSlots()
 let slots = [];
 let status = "loading"; // "loading", "ok" or "error"
+let openSlot = null; // the trip id whose booking form is open, or null
 
 // Turn a UTC moment from the database into Lima time, like "07:00"
 function limaTime(isoString) {
@@ -57,7 +68,7 @@ async function loadSlots() {
     if (!response.ok) throw new Error("Server answered " + response.status);
     const rows = await response.json();
     slots = rows.map(function (row) {
-      return { time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked };
+      return { id: row.trip_id, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked };
     });
     status = "ok";
   } catch (error) {
@@ -100,7 +111,7 @@ function render() {
     }
     return;
   }
-  for (const slot of slots) {
+   for (const slot of slots) {
     const seatsLeft = slot.capacity - slot.booked;
     const card = document.createElement("article");
     card.className = "slot";
@@ -108,13 +119,50 @@ function render() {
     if (seatsLeft <= 0) {
       card.classList.add("slot-full");
       card.innerHTML = `<h2>${formatTime(slot.time, t)}</h2><p>${t.full}</p>`;
+    } else if (openSlot === slot.id) {
+      card.innerHTML =
+        `<h2>${formatTime(slot.time, t)}</h2>` +
+        `<p>${t.seatsLeft(seatsLeft)}</p>` +
+        `<form class="book-form">` +
+          `<label>${t.nameLabel}<input name="first_name" maxlength="30" autocomplete="given-name"></label>` +
+          `<label>${t.stopLabel}<select name="stop">` +
+            `<option>Lobitos</option><option>Sichez</option><option>Piedritas</option>` +
+          `</select></label>` +
+          `<p class="form-message" role="alert"></p>` +
+          `<button type="submit">${t.confirm}</button>` +
+          `<button type="button" class="secondary">${t.cancel}</button>` +
+        `</form>`;
+
+      const form = card.querySelector("form");
+      form.querySelector(".secondary").addEventListener("click", function () {
+        openSlot = null;
+        render();
+      });
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const name = form.elements.first_name.value.trim();
+        const stop = form.elements.stop.value;
+        if (name === "") {
+          form.querySelector(".form-message").textContent = t.nameMissing;
+          return;
+        }
+        console.log("Would book:", slot.id, name, stop); // 1c-2b replaces this line
+      });
     } else {
       card.innerHTML =
         `<h2>${formatTime(slot.time, t)}</h2>` +
         `<p>${t.seatsLeft(seatsLeft)}</p>` +
-        `<button>${t.book}</button>`;
+        `<button class="book-button">${t.book}</button>`;
+      card.querySelector(".book-button").addEventListener("click", function () {
+        openSlot = slot.id;
+        render();
+      });
     }
+
     container.appendChild(card);
+    if (openSlot === slot.id && seatsLeft > 0) {
+      card.querySelector("input").focus();
+    }
   }
 }
 

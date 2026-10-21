@@ -16,7 +16,14 @@ const texts = {
     stopLabel: "¿Dónde subes?",
     confirm: "Confirmar",
     cancel: "Cancelar",
-    nameMissing: "Escribe tu nombre."
+    nameMissing: "Escribe tu nombre.",
+    saving: "Reservando...",
+    invalid: "Revisa tu nombre y el lugar donde subes.",
+    bookError: "No se pudo reservar. Revisa tu señal e intenta de nuevo.",
+    noticeBooked: (name, stop, time) => "¡Listo, " + name + "! Asiento reservado. Salida: " + time + ". Subes en " + stop + ".",
+    noticeFull: "Esa van ya se llenó. Elige otra salida.",
+    noticeGone: "Esa salida ya no está disponible."
+
 
   },
   en: {
@@ -35,8 +42,13 @@ const texts = {
     stopLabel: "Where do you board?",
     confirm: "Confirm",
     cancel: "Cancel",
-    nameMissing: "Please type your first name."
-
+    nameMissing: "Please type your first name.",
+    saving: "Booking...",
+    invalid: "Check your name and where you board.",
+    bookError: "Could not book. Check your signal and try again.",
+    noticeBooked: (name, stop, time) => "Done, " + name + "! Seat booked. Departure: " + time + ". You board at " + stop + ".",
+    noticeFull: "That van just filled up. Please choose another departure.",
+    noticeGone: "That departure is no longer available."
   }
 };
 
@@ -44,6 +56,7 @@ const texts = {
 let slots = [];
 let status = "loading"; // "loading", "ok" or "error"
 let openSlot = null; // the trip id whose booking form is open, or null
+let notice = null; // the message shown after a booking attempt, or null
 
 // Turn a UTC moment from the database into Lima time, like "07:00"
 function limaTime(isoString) {
@@ -78,6 +91,18 @@ async function loadSlots() {
   render();
 }
 
+// Ask the database to book one seat. It answers with a status.
+async function bookSeat(tripId, name, stop) {
+  const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/book_seat", {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_trip_id: tripId, p_first_name: name, p_boarding_stop: stop })
+  });
+  if (!response.ok) throw new Error("Server answered " + response.status);
+  const rows = await response.json();
+  return rows[0];
+}
+
 // 3. Turn "07:00" into "7:00 a. m." (or "7:00 am")
 function formatTime(time, t) {
   const hour = Number(time.slice(0, 2));
@@ -97,6 +122,22 @@ function render() {
 
   const container = document.getElementById("slots");
   container.innerHTML = "";
+
+    if (notice) {
+    const note = document.createElement("p");
+    note.className = "notice notice-" + notice.kind;
+    note.setAttribute("role", "status");
+    if (notice.kind === "booked") {
+      note.textContent = t.noticeBooked(notice.name, notice.stop, formatTime(notice.time, t));
+    } else if (notice.kind === "full") {
+      note.textContent = t.noticeFull;
+    } else {
+      note.textContent = t.noticeGone;
+    }
+    container.appendChild(note);
+  }
+
+
   if (status !== "ok") {
     const box = document.createElement("article");
     box.className = "slot";
@@ -138,16 +179,42 @@ function render() {
         openSlot = null;
         render();
       });
-      form.addEventListener("submit", function (event) {
+
+       
+      form.addEventListener("submit", async function (event) {
         event.preventDefault();
         const name = form.elements.first_name.value.trim();
         const stop = form.elements.stop.value;
+        const message = form.querySelector(".form-message");
+        const buttons = form.querySelectorAll("button");
+        const submit = form.querySelector("button[type=submit]");
         if (name === "") {
-          form.querySelector(".form-message").textContent = t.nameMissing;
+          message.textContent = t.nameMissing;
           return;
         }
-        console.log("Would book:", slot.id, name, stop); // 1c-2b replaces this line
+
+        // Lock the form so a double tap can't book two seats
+        buttons.forEach(function (b) { b.disabled = true; });
+        submit.textContent = t.saving;
+        message.textContent = "";
+
+        try {
+          const result = await bookSeat(slot.id, name, stop);
+          if (["booked", "full", "not_found"].includes(result.status)) {
+            notice = { kind: result.status, name: name, stop: stop, time: slot.time };
+            openSlot = null;
+            await loadSlots();
+            return;
+          }
+          message.textContent = t.invalid;
+        } catch (error) {
+          console.error(error);
+          message.textContent = t.bookError;
+        }
+        buttons.forEach(function (b) { b.disabled = false; });
+        submit.textContent = t.confirm;
       });
+
     } else {
       card.innerHTML =
         `<h2>${formatTime(slot.time, t)}</h2>` +

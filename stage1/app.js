@@ -8,7 +8,11 @@ const texts = {
     book: "Reservar asiento",
     langButton: "English",
     am: "a. m.",
-    pm: "p. m."
+    pm: "p. m.",
+    loading: "Cargando salidas...",
+    offline: "Sin conexión. Revisa tu señal e intenta de nuevo.",
+    retry: "Intentar de nuevo"
+
   },
   en: {
     title: "Van Lobitos → Talara",
@@ -18,12 +22,17 @@ const texts = {
     book: "Book a seat",
     langButton: "Español",
     am: "am",
-    pm: "pm"
+    pm: "pm",
+    loading: "Loading departures...",
+    offline: "No connection. Check your signal and try again.",
+    retry: "Try again"
+
   }
 };
 
 // 2. REAL data from Supabase. Starts empty and is filled by loadSlots()
 let slots = [];
+let status = "loading"; // "loading", "ok" or "error"
 
 // Turn a UTC moment from the database into Lima time, like "07:00"
 function limaTime(isoString) {
@@ -37,15 +46,24 @@ function limaTime(isoString) {
 
 // Ask Supabase for the upcoming departures, then draw the page
 async function loadSlots() {
-  const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_slots", {
-    method: "POST",
-    headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-    body: "{}"
-  });
-  const rows = await response.json();
-  slots = rows.map(function (row) {
-    return { time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked };
-  });
+  status = "loading";
+  render();
+  try {
+    const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_slots", {
+      method: "POST",
+      headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+      body: "{}"
+    });
+    if (!response.ok) throw new Error("Server answered " + response.status);
+    const rows = await response.json();
+    slots = rows.map(function (row) {
+      return { time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked };
+    });
+    status = "ok";
+  } catch (error) {
+    console.error(error);
+    status = "error";
+  }
   render();
 }
 
@@ -68,7 +86,20 @@ function render() {
 
   const container = document.getElementById("slots");
   container.innerHTML = "";
-
+  if (status !== "ok") {
+    const box = document.createElement("article");
+    box.className = "slot";
+    if (status === "loading") {
+      box.innerHTML = `<p>${t.loading}</p>`;
+    } else {
+      box.innerHTML = `<p>${t.offline}</p><button id="retry-button">${t.retry}</button>`;
+    }
+    container.appendChild(box);
+    if (status === "error") {
+      document.getElementById("retry-button").addEventListener("click", loadSlots);
+    }
+    return;
+  }
   for (const slot of slots) {
     const seatsLeft = slot.capacity - slot.booked;
     const card = document.createElement("article");
@@ -93,5 +124,4 @@ document.getElementById("lang-button").addEventListener("click", function () {
   render();
 });
 
-render();
 loadSlots();

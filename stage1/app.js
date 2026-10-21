@@ -22,13 +22,32 @@ const texts = {
   }
 };
 
-// 2. FAKE data for now. In Step 1b this comes from Supabase
-const capacity = 8;
-const slots = [
-  { time: "07:00", booked: 3 },
-  { time: "09:00", booked: 8 },
-  { time: "11:00", booked: 1 }
-];
+// 2. REAL data from Supabase. Starts empty and is filled by loadSlots()
+let slots = [];
+
+// Turn a UTC moment from the database into Lima time, like "07:00"
+function limaTime(isoString) {
+  return new Date(isoString).toLocaleTimeString("en-GB", {
+    timeZone: "America/Lima",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  });
+}
+
+// Ask Supabase for the upcoming departures, then draw the page
+async function loadSlots() {
+  const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_slots", {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+    body: "{}"
+  });
+  const rows = await response.json();
+  slots = rows.map(function (row) {
+    return { time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked };
+  });
+  render();
+}
 
 // 3. Turn "07:00" into "7:00 a. m." (or "7:00 am")
 function formatTime(time, t) {
@@ -51,7 +70,7 @@ function render() {
   container.innerHTML = "";
 
   for (const slot of slots) {
-    const seatsLeft = capacity - slot.booked;
+    const seatsLeft = slot.capacity - slot.booked;
     const card = document.createElement("article");
     card.className = "slot";
 
@@ -75,3 +94,4 @@ document.getElementById("lang-button").addEventListener("click", function () {
 });
 
 render();
+loadSlots();

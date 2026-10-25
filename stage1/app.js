@@ -22,7 +22,10 @@ const texts = {
     bookError: "No se pudo reservar. Revisa tu señal e intenta de nuevo.",
     noticeBooked: (name, stop, time) => "¡Listo, " + name + "! Asiento reservado. Salida: " + time + ". Subes en " + stop + ".",
     noticeFull: "Esa van ya se llenó. Elige otra salida.",
-    noticeGone: "Esa salida ya no está disponible."
+    noticeGone: "Esa salida ya no está disponible.",
+    today: "Hoy",
+    tomorrow: "Mañana",
+    locale: "es-PE",
 
 
   },
@@ -48,7 +51,10 @@ const texts = {
     bookError: "Could not book. Check your signal and try again.",
     noticeBooked: (name, stop, time) => "Done, " + name + "! Seat booked. Departure: " + time + ". You board at " + stop + ".",
     noticeFull: "That van just filled up. Please choose another departure.",
-    noticeGone: "That departure is no longer available."
+    noticeGone: "That departure is no longer available.",
+    today: "Today",
+    tomorrow: "Tomorrow",
+    locale: "en-GB"
   }
 };
 
@@ -58,6 +64,7 @@ let status = "loading"; // "loading", "ok" or "error"
 let openSlot = null; // the trip id whose booking form is open, or null
 let notice = null; // the message shown after a booking attempt, or null
 
+
 // Turn a UTC moment from the database into Lima time, like "07:00"
 function limaTime(isoString) {
   return new Date(isoString).toLocaleTimeString("en-GB", {
@@ -65,6 +72,23 @@ function limaTime(isoString) {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23"
+  });
+}
+
+// The calendar day in Lima, like "2026-10-28"
+function limaDay(date) {
+  return date.toLocaleDateString("en-CA", { timeZone: "America/Lima" });
+}
+
+// "Hoy", "Mañana", or a short date like "mié 28 oct"
+function dayLabel(isoString, t) {
+  const departs = new Date(isoString);
+  const now = new Date();
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  if (limaDay(departs) === limaDay(now)) return t.today;
+  if (limaDay(departs) === limaDay(tomorrow)) return t.tomorrow;
+  return departs.toLocaleDateString(t.locale, {
+    timeZone: "America/Lima", weekday: "short", day: "numeric", month: "short"
   });
 }
 
@@ -81,7 +105,7 @@ async function loadSlots() {
     if (!response.ok) throw new Error("Server answered " + response.status);
     const rows = await response.json();
     slots = rows.map(function (row) {
-      return { id: row.trip_id, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked };
+        return { id: row.trip_id, departs: row.departs_at, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked };
     });
     status = "ok";
   } catch (error) {
@@ -154,15 +178,16 @@ function render() {
   }
    for (const slot of slots) {
     const seatsLeft = slot.capacity - slot.booked;
+    const heading = dayLabel(slot.departs, t) + " · " + formatTime(slot.time, t);
     const card = document.createElement("article");
     card.className = "slot";
 
     if (seatsLeft <= 0) {
       card.classList.add("slot-full");
-      card.innerHTML = `<h2>${formatTime(slot.time, t)}</h2><p>${t.full}</p>`;
+      card.innerHTML = `<h2>${heading}</h2><p>${t.full}</p>`;
     } else if (openSlot === slot.id) {
       card.innerHTML =
-        `<h2>${formatTime(slot.time, t)}</h2>` +
+        `<h2>${heading}</h2>` +
         `<p>${t.seatsLeft(seatsLeft)}</p>` +
         `<form class="book-form">` +
           `<label>${t.nameLabel}<input name="first_name" maxlength="30" autocomplete="given-name"></label>` +
@@ -217,7 +242,7 @@ function render() {
 
     } else {
       card.innerHTML =
-        `<h2>${formatTime(slot.time, t)}</h2>` +
+        `<h2>${heading}</h2>` +
         `<p>${t.seatsLeft(seatsLeft)}</p>` +
         `<button class="book-button">${t.book}</button>`;
       card.querySelector(".book-button").addEventListener("click", function () {

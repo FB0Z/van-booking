@@ -26,6 +26,7 @@ const texts = {
     today: "Hoy",
     tomorrow: "Mañana",
     locale: "es-PE",
+    noDepartures: "No hay salidas por ahora. Vuelve a revisar más tarde.",
 
 
   },
@@ -54,7 +55,8 @@ const texts = {
     noticeGone: "That departure is no longer available.",
     today: "Today",
     tomorrow: "Tomorrow",
-    locale: "en-GB"
+    locale: "en-GB",
+    noDepartures: "No departures for now. Check back later."
   }
 };
 
@@ -175,8 +177,18 @@ function render() {
       document.getElementById("retry-button").addEventListener("click", loadSlots);
     }
     return;
+   }
+
+  if (slots.length === 0) {
+    const box = document.createElement("article");
+    box.className = "slot";
+    box.innerHTML = `<p>${t.noDepartures}</p><button id="refresh-button">${t.retry}</button>`;
+    container.appendChild(box);
+    document.getElementById("refresh-button").addEventListener("click", loadSlots);
+    return;
   }
-   for (const slot of slots) {
+
+  for (const slot of slots) {
     const seatsLeft = slot.capacity - slot.booked;
     const heading = dayLabel(slot.departs, t) + " · " + formatTime(slot.time, t);
     const card = document.createElement("article");

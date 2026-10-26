@@ -62,6 +62,7 @@ const texts = {
 
 // 2. REAL data from Supabase. Starts empty and is filled by loadSlots()
 let slots = [];
+let stops = []; // boarding stops from Supabase, filled by loadSlots()
 let status = "loading"; // "loading", "ok" or "error"
 let openSlot = null; // the trip id whose booking form is open, or null
 let notice = null; // the message shown after a booking attempt, or null
@@ -94,21 +95,28 @@ function dayLabel(isoString, t) {
   });
 }
 
-// Ask Supabase for the upcoming departures, then draw the page
+// Ask Supabase to run one of our database functions and give back its rows
+async function callRpc(name) {
+  const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+    body: "{}"
+  });
+  if (!response.ok) throw new Error("Server answered " + response.status);
+  return response.json();
+}
+
+// Ask Supabase for the departures and the boarding stops, then draw the page
 async function loadSlots() {
   status = "loading";
   render();
   try {
-    const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_slots", {
-      method: "POST",
-      headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-      body: "{}"
+    // Both requests go out at once; if either fails, the page shows "try again"
+    const [slotRows, stopRows] = await Promise.all([callRpc("get_slots"), callRpc("get_stops")]);
+    slots = slotRows.map(function (row) {
+      return { id: row.trip_id, departs: row.departs_at, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked };
     });
-    if (!response.ok) throw new Error("Server answered " + response.status);
-    const rows = await response.json();
-    slots = rows.map(function (row) {
-        return { id: row.trip_id, departs: row.departs_at, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked };
-    });
+    stops = stopRows.map(function (row) { return row.name; });
     status = "ok";
   } catch (error) {
     console.error(error);
@@ -204,7 +212,7 @@ function render() {
         `<form class="book-form">` +
           `<label>${t.nameLabel}<input name="first_name" maxlength="30" autocomplete="given-name"></label>` +
           `<label>${t.stopLabel}<select name="stop">` +
-            `<option>Lobitos</option><option>Sichez</option><option>Piedritas</option>` +
+          stops.map(function (stop) { return `<option>${stop}</option>`; }).join("") +
           `</select></label>` +
           `<p class="form-message" role="alert"></p>` +
           `<button type="submit">${t.confirm}</button>` +

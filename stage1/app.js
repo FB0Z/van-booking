@@ -114,7 +114,7 @@ async function loadSlots() {
     // Both requests go out at once; if either fails, the page shows "try again"
     const [slotRows, stopRows] = await Promise.all([callRpc("get_slots"), callRpc("get_stops")]);
     slots = slotRows.map(function (row) {
-      return { id: row.trip_id, departs: row.departs_at, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked };
+    return { id: row.trip_id, departs: row.departs_at, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked, vehicle: { es: row.vehicle_es, en: row.vehicle_en } };
     });
     stops = stopRows.map(function (row) { return row.name; });
     status = "ok";

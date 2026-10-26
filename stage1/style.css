@@ -71,3 +71,32 @@ button {
 .notice { margin: 0 0 16px; padding: 14px 16px; border-radius: 12px; font-weight: 600; }
 .notice-booked { background: #e6f4ea; color: #14532d; border: 2px solid #1e7a3c; }
 .notice-full, .notice-not_found { background: #fff4e5; color: #7a4100; border: 2px solid #d98200; }
+
+/* From / To box */
+.where {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.where-stops {
+  flex: 1;
+  min-width: 0;
+}
+
+.where-stops label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.where-stops select {
+  width: 100%;
+}
+
+.where .swap {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  font-size: 22px;
+}

@@ -1,7 +1,7 @@
 // 1. ALL the text, in both languages, in one place
 const texts = {
   es: {
-    title: "Van Lobitos → Talara",
+    title: "Van Lobitos ↔ Talara",
     intro: "Reserva tu asiento y sabe si la van sale.",
     seatsLeft: (n) => (n === 1 ? "1 asiento libre" : n + " asientos libres"),
     full: "Van confirmada, sale",
@@ -12,26 +12,26 @@ const texts = {
     loading: "Cargando salidas...",
     offline: "Sin conexión. Revisa tu señal e intenta de nuevo.",
     retry: "Intentar de nuevo",
+    from: "Desde",
+    to: "Hasta",
+    swap: "Cambiar dirección",
     nameLabel: "Tu nombre (sin apellido)",
-    stopLabel: "¿Dónde subes?",
     confirm: "Confirmar",
     cancel: "Cancelar",
     nameMissing: "Escribe tu nombre.",
     saving: "Reservando...",
-    invalid: "Revisa tu nombre y el lugar donde subes.",
+    invalid: "Revisa tu nombre y tus paradas.",
     bookError: "No se pudo reservar. Revisa tu señal e intenta de nuevo.",
-    noticeBooked: (name, stop, time) => "¡Listo, " + name + "! Asiento reservado. Salida: " + time + ". Subes en " + stop + ".",
+    noticeBooked: (name, from, to, time) => "¡Listo, " + name + "! Asiento reservado. Salida: " + time + ", de " + from + " a " + to + ".",
     noticeFull: "Esa van ya se llenó. Elige otra salida.",
     noticeGone: "Esa salida ya no está disponible.",
     today: "Hoy",
     tomorrow: "Mañana",
     locale: "es-PE",
-    noDepartures: "No hay salidas por ahora. Vuelve a revisar más tarde.",
-
-
+    noDepartures: "No hay salidas en esta dirección por ahora. Vuelve a revisar más tarde."
   },
   en: {
-    title: "Van Lobitos → Talara",
+    title: "Van Lobitos ↔ Talara",
     intro: "Book your seat and find out if the van is leaving.",
     seatsLeft: (n) => (n === 1 ? "1 seat left" : n + " seats left"),
     full: "Van confirmed, leaving",
@@ -42,31 +42,34 @@ const texts = {
     loading: "Loading departures...",
     offline: "No connection. Check your signal and try again.",
     retry: "Try again",
+    from: "From",
+    to: "To",
+    swap: "Swap direction",
     nameLabel: "Your first name (no surname)",
-    stopLabel: "Where do you board?",
     confirm: "Confirm",
     cancel: "Cancel",
     nameMissing: "Please type your first name.",
     saving: "Booking...",
-    invalid: "Check your name and where you board.",
+    invalid: "Check your name and your stops.",
     bookError: "Could not book. Check your signal and try again.",
-    noticeBooked: (name, stop, time) => "Done, " + name + "! Seat booked. Departure: " + time + ". You board at " + stop + ".",
+    noticeBooked: (name, from, to, time) => "Done, " + name + "! Seat booked. Departure: " + time + ", " + from + " to " + to + ".",
     noticeFull: "That van just filled up. Please choose another departure.",
     noticeGone: "That departure is no longer available.",
     today: "Today",
     tomorrow: "Tomorrow",
     locale: "en-GB",
-    noDepartures: "No departures for now. Check back later."
+    noDepartures: "No departures in this direction for now. Check back later."
   }
 };
 
 // 2. REAL data from Supabase. Starts empty and is filled by loadSlots()
 let slots = [];
-let stops = []; // boarding stops from Supabase, filled by loadSlots()
+let stops = []; // [{ name, km }], furthest from Talara first
+let from = null; // the rider's start stop
+let to = null; // the rider's end stop
 let status = "loading"; // "loading", "ok" or "error"
 let openSlot = null; // the trip id whose booking form is open, or null
 let notice = null; // the message shown after a booking attempt, or null
-
 
 // Turn a UTC moment from the database into Lima time, like "07:00"
 function limaTime(isoString) {
@@ -95,6 +98,16 @@ function dayLabel(isoString, t) {
   });
 }
 
+// How far a stop is from Talara, in km
+function kmOf(name) {
+  return stops.find(function (s) { return s.name === name; }).km;
+}
+
+// Which way the rider is going: km going down means towards Talara
+function direction() {
+  return kmOf(from) > kmOf(to) ? "to_talara" : "to_lobitos";
+}
+
 // Ask Supabase to run one of our database functions and give back its rows
 async function callRpc(name) {
   const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, {
@@ -106,7 +119,7 @@ async function callRpc(name) {
   return response.json();
 }
 
-// Ask Supabase for the departures and the boarding stops, then draw the page
+// Ask Supabase for the departures and the stops, then draw the page
 async function loadSlots() {
   status = "loading";
   render();
@@ -114,9 +127,14 @@ async function loadSlots() {
     // Both requests go out at once; if either fails, the page shows "try again"
     const [slotRows, stopRows] = await Promise.all([callRpc("get_slots"), callRpc("get_stops")]);
     slots = slotRows.map(function (row) {
-    return { id: row.trip_id, departs: row.departs_at, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked, vehicle: { es: row.vehicle_es, en: row.vehicle_en } };
+      return { id: row.trip_id, departs: row.departs_at, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked, vehicle: { es: row.vehicle_es, en: row.vehicle_en }, direction: row.direction };
     });
-    stops = stopRows.map(function (row) { return row.name; });
+    stops = stopRows.map(function (row) { return { name: row.name, km: Number(row.km_from_talara) }; });
+
+    // First visit (or a stop was switched off): start at the far end, go to the other end
+    const names = stops.map(function (s) { return s.name; });
+    if (!names.includes(from)) from = names[0];
+    if (!names.includes(to) || to === from) to = names[names.length - 1] === from ? names[0] : names[names.length - 1];
     status = "ok";
   } catch (error) {
     console.error(error);
@@ -126,11 +144,11 @@ async function loadSlots() {
 }
 
 // Ask the database to book one seat. It answers with a status.
-async function bookSeat(tripId, name, stop) {
+async function bookSeat(tripId, name, boarding, dropoff) {
   const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/book_seat", {
     method: "POST",
     headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ p_trip_id: tripId, p_first_name: name, p_boarding_stop: stop })
+    body: JSON.stringify({ p_trip_id: tripId, p_first_name: name, p_boarding_stop: boarding, p_dropoff_stop: dropoff })
   });
   if (!response.ok) throw new Error("Server answered " + response.status);
   const rows = await response.json();
@@ -142,6 +160,13 @@ function formatTime(time, t) {
   const hour = Number(time.slice(0, 2));
   const minutes = time.slice(3, 5);
   return (hour % 12 || 12) + ":" + minutes + " " + (hour < 12 ? t.am : t.pm);
+}
+
+// The <option>s for one dropdown. The stop picked in the other dropdown is greyed out.
+function stopOptions(selected, blocked) {
+  return stops.map(function (s) {
+    return `<option${s.name === selected ? " selected" : ""}${s.name === blocked ? " disabled" : ""}>${s.name}</option>`;
+  }).join("");
 }
 
 // 4. Draw the page in the chosen language
@@ -157,12 +182,12 @@ function render() {
   const container = document.getElementById("slots");
   container.innerHTML = "";
 
-    if (notice) {
+  if (notice) {
     const note = document.createElement("p");
     note.className = "notice notice-" + notice.kind;
     note.setAttribute("role", "status");
     if (notice.kind === "booked") {
-      note.textContent = t.noticeBooked(notice.name, notice.stop, formatTime(notice.time, t));
+      note.textContent = t.noticeBooked(notice.name, notice.from, notice.to, formatTime(notice.time, t));
     } else if (notice.kind === "full") {
       note.textContent = t.noticeFull;
     } else {
@@ -170,7 +195,6 @@ function render() {
     }
     container.appendChild(note);
   }
-
 
   if (status !== "ok") {
     const box = document.createElement("article");
@@ -185,9 +209,44 @@ function render() {
       document.getElementById("retry-button").addEventListener("click", loadSlots);
     }
     return;
-   }
+  }
 
-  if (slots.length === 0) {
+  // The From / To box, with the swap button
+  const where = document.createElement("article");
+  where.className = "slot where";
+  where.innerHTML =
+    `<div class="where-stops">` +
+      `<label>${t.from}<select name="from">${stopOptions(from, to)}</select></label>` +
+      `<label>${t.to}<select name="to">${stopOptions(to, from)}</select></label>` +
+    `</div>` +
+    `<button type="button" class="swap" aria-label="${t.swap}" title="${t.swap}">⇅</button>`;
+  container.appendChild(where);
+
+  where.querySelector("select[name=from]").addEventListener("change", function (event) {
+    from = event.target.value;
+    openSlot = null;
+    notice = null;
+    render();
+  });
+  where.querySelector("select[name=to]").addEventListener("change", function (event) {
+    to = event.target.value;
+    openSlot = null;
+    notice = null;
+    render();
+  });
+  where.querySelector(".swap").addEventListener("click", function () {
+    const old = from;
+    from = to;
+    to = old;
+    openSlot = null;
+    notice = null;
+    render();
+  });
+
+  // Only the vans going the rider's way
+  const shown = slots.filter(function (slot) { return slot.direction === direction(); });
+
+  if (shown.length === 0) {
     const box = document.createElement("article");
     box.className = "slot";
     box.innerHTML = `<p>${t.noDepartures}</p><button id="refresh-button">${t.retry}</button>`;
@@ -196,7 +255,7 @@ function render() {
     return;
   }
 
-  for (const slot of slots) {
+  for (const slot of shown) {
     const seatsLeft = slot.capacity - slot.booked;
     const heading = dayLabel(slot.departs, t) + " · " + formatTime(slot.time, t);
     const card = document.createElement("article");
@@ -211,9 +270,6 @@ function render() {
         `<p>${t.seatsLeft(seatsLeft)}</p>` +
         `<form class="book-form">` +
           `<label>${t.nameLabel}<input name="first_name" maxlength="30" autocomplete="given-name"></label>` +
-          `<label>${t.stopLabel}<select name="stop">` +
-          stops.map(function (stop) { return `<option>${stop}</option>`; }).join("") +
-          `</select></label>` +
           `<p class="form-message" role="alert"></p>` +
           `<button type="submit">${t.confirm}</button>` +
           `<button type="button" class="secondary">${t.cancel}</button>` +
@@ -225,11 +281,9 @@ function render() {
         render();
       });
 
-       
       form.addEventListener("submit", async function (event) {
         event.preventDefault();
         const name = form.elements.first_name.value.trim();
-        const stop = form.elements.stop.value;
         const message = form.querySelector(".form-message");
         const buttons = form.querySelectorAll("button");
         const submit = form.querySelector("button[type=submit]");
@@ -244,9 +298,9 @@ function render() {
         message.textContent = "";
 
         try {
-          const result = await bookSeat(slot.id, name, stop);
+          const result = await bookSeat(slot.id, name, from, to);
           if (["booked", "full", "not_found"].includes(result.status)) {
-            notice = { kind: result.status, name: name, stop: stop, time: slot.time };
+            notice = { kind: result.status, name: name, from: from, to: to, time: slot.time };
             openSlot = null;
             await loadSlots();
             return;

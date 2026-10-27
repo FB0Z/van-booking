@@ -194,3 +194,48 @@ button {
   background: #fff4e0;
   color: #6b4200;
 }
+
+/* Seats-filling bar: one block per seat */
+.seat-bar {
+  display: flex;
+  gap: 4px;
+  margin: 10px 0 6px;
+}
+
+.seat {
+  flex: 1;
+  height: 12px;
+  border-radius: 3px;
+  background: #ffffff;
+  border: 1px solid #9aa4b2;
+}
+
+.seat-taken {
+  background: #1a5fd0;
+  border-color: #1a5fd0;
+}
+
+.slot-almost .seat-taken {
+  background: #e8890c;
+  border-color: #e8890c;
+}
+
+.slot-almost .seats-count {
+  color: #8a5300;
+  font-weight: bold;
+}
+
+.slot-full .seat-taken {
+  background: #1e7b45;
+  border-color: #1e7b45;
+}
+
+.seats-count {
+  margin: 0;
+}
+
+.slot-leaves {
+  margin: 2px 0 10px;
+  font-size: 0.9rem;
+  color: #555;
+}

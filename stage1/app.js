@@ -16,6 +16,9 @@ const texts = {
     to: "Hasta",
     swap: "Cambiar dirección",
     journey: (from, to, minutes) => from + " → " + to + " · aprox. " + minutes + " min",
+    bookedOf: (n, cap) => n + " de " + cap + " reservados",
+    almostFull: "¡Casi llena!",
+    leaves: (stop, time) => "Sale de " + stop + " a las " + time + ", o antes si se llena.",
     nameLabel: "Tu nombre (sin apellido)",
     confirm: "Confirmar",
     cancel: "Cancelar",
@@ -44,6 +47,7 @@ const texts = {
     cancelling: "Cancelando...",
     tooLate: "Ya no se puede cancelar: faltan menos de 30 minutos para la salida. Avisa al chofer.",
     cancelError: "No se pudo cancelar. Revisa tu señal e intenta de nuevo."
+    
   },
   en: {
     title: "Van Lobitos ↔ Talara",
@@ -61,6 +65,9 @@ const texts = {
     to: "To",
     swap: "Swap direction",
     journey: (from, to, minutes) => from + " → " + to + " · about " + minutes + " min",
+    bookedOf: (n, cap) => n + " of " + cap + " booked",
+    almostFull: "Almost full!",
+    leaves: (stop, time) => "Leaves " + stop + " at " + time + ", or earlier if full.",
     nameLabel: "Your first name (no surname)",
     confirm: "Confirm",
     cancel: "Cancel",
@@ -184,6 +191,21 @@ function minutesAfterStart(name, tripDirection) {
 // A moment some minutes later, like "the departure + 8 minutes"
 function addMinutes(isoString, minutes) {
   return new Date(new Date(isoString).getTime() + minutes * 60000).toISOString();
+}
+
+// The row of seat blocks: one block per seat, filled for each booked seat
+function seatBar(booked, capacity) {
+  let blocks = "";
+  for (let i = 0; i < capacity; i++) {
+    blocks += `<span class="seat${i < booked ? " seat-taken" : ""}"></span>`;
+  }
+  return `<div class="seat-bar" aria-hidden="true">${blocks}</div>`;
+}
+
+// The first stop of a trip: Lobitos going to Talara, Talara coming back
+function lineStart(tripDirection) {
+  const sorted = stops.slice().sort(function (a, b) { return b.minutes - a.minutes; });
+  return tripDirection === "to_talara" ? sorted[0].name : sorted[sorted.length - 1].name;
 }
 
 // Ask Supabase to run one of our database functions and give back its rows
@@ -442,16 +464,25 @@ function render() {
       `<h2>${formatTime(limaTime(boardAt), t)} <span class="arrow">→</span> ${formatTime(limaTime(arriveAt), t)}</h2>` +
       `<p class="slot-route">${t.journey(from, to, arriveMin - boardMin)}</p>`;
 
+        const almostFull = seatsLeft > 0 && seatsLeft <= 2;
+    const seatsInfo =
+      seatBar(slot.booked, slot.capacity) +
+      `<p class="seats-count">` +
+        (almostFull ? t.almostFull : t.bookedOf(slot.booked, slot.capacity)) + " · " + t.seatsLeft(seatsLeft) +
+      `</p>` +
+      `<p class="slot-leaves">${t.leaves(lineStart(slot.direction), formatTime(slot.time, t))}</p>`;
+
     const card = document.createElement("article");
     card.className = "slot";
+    if (almostFull) card.classList.add("slot-almost");
 
     if (seatsLeft <= 0) {
       card.classList.add("slot-full");
-      card.innerHTML = top + `<p>${t.full}</p>`;
+      card.innerHTML = top + seatBar(slot.booked, slot.capacity) + `<p>${t.full}</p>`;
     } else if (openSlot === slot.id) {
       card.innerHTML =
         top +
-        `<p>${t.seatsLeft(seatsLeft)}</p>` +
+        seatsInfo +
         `<form class="book-form">` +
           `<label>${t.nameLabel}<input name="first_name" maxlength="30" autocomplete="given-name"></label>` +
           `<p class="form-message" role="alert"></p>` +
@@ -513,7 +544,7 @@ function render() {
     } else {
       card.innerHTML =
         top +
-        `<p>${t.seatsLeft(seatsLeft)}</p>` +
+        seatsInfo +
         `<button class="book-button">${t.book}</button>`;
       card.querySelector(".book-button").addEventListener("click", function () {
         openSlot = slot.id;

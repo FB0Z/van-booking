@@ -23,13 +23,18 @@ const texts = {
     saving: "Reservando...",
     invalid: "Revisa tu nombre y tus paradas.",
     bookError: "No se pudo reservar. Revisa tu señal e intenta de nuevo.",
-    noticeBooked: (name, from, to, time) => "¡Listo, " + name + "! Asiento reservado. Salida: " + time + ", de " + from + " a " + to + ".",
+    noticeBooked: (name) => "¡Listo, " + name + "! Asiento reservado. Tu código está abajo.",
     noticeFull: "Esa van ya se llenó. Elige otra salida.",
     noticeGone: "Esa salida ya no está disponible.",
     today: "Hoy",
     tomorrow: "Mañana",
     locale: "es-PE",
-    noDepartures: "No hay salidas en esta dirección por ahora. Vuelve a revisar más tarde."
+    noDepartures: "No hay salidas en esta dirección por ahora. Vuelve a revisar más tarde.",
+    myBookings: "Tus reservas en este teléfono",
+    showDriver: "Muestra este código al chofer.",
+    whatsapp: "Enviar por WhatsApp",
+    waMessage: (code, when, from, to, name) =>
+      "✅ Van reservada\nCódigo: " + code + "\n" + when + "\n" + from + " → " + to + "\nNombre: " + name
   },
   en: {
     title: "Van Lobitos ↔ Talara",
@@ -54,24 +59,61 @@ const texts = {
     saving: "Booking...",
     invalid: "Check your name and your stops.",
     bookError: "Could not book. Check your signal and try again.",
-    noticeBooked: (name, from, to, time) => "Done, " + name + "! Seat booked. Departure: " + time + ", " + from + " to " + to + ".",
+    noticeBooked: (name) => "Done, " + name + "! Seat booked. Your code is below.",
     noticeFull: "That van just filled up. Please choose another departure.",
     noticeGone: "That departure is no longer available.",
     today: "Today",
     tomorrow: "Tomorrow",
     locale: "en-GB",
-    noDepartures: "No departures in this direction for now. Check back later."
+    noDepartures: "No departures in this direction for now. Check back later.",
+    myBookings: "Your bookings on this phone",
+    showDriver: "Show this code to the driver.",
+    whatsapp: "Send to WhatsApp",
+    waMessage: (code, when, from, to, name) =>
+      "✅ Van booked\nCode: " + code + "\n" + when + "\n" + from + " → " + to + "\nName: " + name
   }
 };
 
 // 2. REAL data from Supabase. Starts empty and is filled by loadSlots()
 let slots = [];
-let stops = []; // [{ name, km }], furthest from Talara first
+let stops = []; // [{ name, km, minutes }], furthest from Talara first
 let from = null; // the rider's start stop
 let to = null; // the rider's end stop
 let status = "loading"; // "loading", "ok" or "error"
 let openSlot = null; // the trip id whose booking form is open, or null
+let requestId = null; // one ID per booking attempt, so a retry can't book twice
 let notice = null; // the message shown after a booking attempt, or null
+let myBookings = loadMyBookings(); // this phone's bookings, saved in the browser
+
+// Read this phone's saved bookings, dropping trips that have already arrived
+function loadMyBookings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("vanBookings") || "[]");
+    return saved.filter(function (b) { return new Date(b.arriveAt) > new Date(); });
+  } catch (error) {
+    return []; // private tab or storage blocked: the page still works, it just can't remember
+  }
+}
+
+function saveMyBookings() {
+  try {
+    localStorage.setItem("vanBookings", JSON.stringify(myBookings));
+  } catch (error) {
+    // Can't save on this phone. The booking is still in the database and the code still works.
+  }
+}
+
+// A new hidden ID for a booking attempt. Very old phones can't make one: they book without it.
+function newRequestId() {
+  return window.crypto && crypto.randomUUID ? crypto.randomUUID() : null;
+}
+
+// Make text safe to put inside HTML (the rider's name)
+function escapeHtml(text) {
+  const span = document.createElement("span");
+  span.textContent = text;
+  return span.innerHTML;
+}
 
 // Turn a UTC moment from the database into Lima time, like "07:00"
 function limaTime(isoString) {
@@ -144,7 +186,7 @@ async function loadSlots() {
     slots = slotRows.map(function (row) {
       return { id: row.trip_id, departs: row.departs_at, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked, vehicle: { es: row.vehicle_es, en: row.vehicle_en }, direction: row.direction };
     });
-      stops = stopRows.map(function (row) { return { name: row.name, km: Number(row.km_from_talara), minutes: Number(row.minutes_from_talara) }; });
+    stops = stopRows.map(function (row) { return { name: row.name, km: Number(row.km_from_talara), minutes: Number(row.minutes_from_talara) }; });
 
     // First visit (or a stop was switched off): start at the far end, go to the other end
     const names = stops.map(function (s) { return s.name; });
@@ -158,12 +200,12 @@ async function loadSlots() {
   render();
 }
 
-// Ask the database to book one seat. It answers with a status.
-async function bookSeat(tripId, name, boarding, dropoff) {
+// Ask the database to book one seat. It answers with a status and a booking code.
+async function bookSeat(tripId, name, boarding, dropoff, attemptId) {
   const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/book_seat", {
     method: "POST",
     headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ p_trip_id: tripId, p_first_name: name, p_boarding_stop: boarding, p_dropoff_stop: dropoff })
+    body: JSON.stringify({ p_trip_id: tripId, p_first_name: name, p_boarding_stop: boarding, p_dropoff_stop: dropoff, p_request_id: attemptId })
   });
   if (!response.ok) throw new Error("Server answered " + response.status);
   const rows = await response.json();
@@ -184,6 +226,31 @@ function stopOptions(selected, blocked) {
   }).join("");
 }
 
+// The rider's own bookings, saved on this phone. Shown even with no signal.
+function drawMyBookings(container, t) {
+  myBookings = myBookings.filter(function (b) { return new Date(b.arriveAt) > new Date(); });
+  if (myBookings.length === 0) return;
+
+  const box = document.createElement("section");
+  box.className = "my-bookings";
+  box.innerHTML = `<h2>${t.myBookings}</h2>`;
+
+  for (const b of myBookings) {
+    const when = dayLabel(b.boardAt, t) + " · " + formatTime(limaTime(b.boardAt), t);
+    const message = t.waMessage(b.code, when, b.from, b.to, b.name);
+    const ticket = document.createElement("article");
+    ticket.className = "ticket";
+    ticket.innerHTML =
+      `<p class="ticket-code">${b.code}</p>` +
+      `<p>${when} → ${formatTime(limaTime(b.arriveAt), t)}</p>` +
+      `<p>${b.from} → ${b.to} · ${escapeHtml(b.name)}</p>` +
+      `<p class="ticket-hint">${t.showDriver}</p>` +
+      `<a class="whatsapp" href="https://wa.me/?text=${encodeURIComponent(message)}" target="_blank" rel="noopener">${t.whatsapp}</a>`;
+    box.appendChild(ticket);
+  }
+  container.appendChild(box);
+}
+
 // 4. Draw the page in the chosen language
 let lang = "es";
 
@@ -202,7 +269,7 @@ function render() {
     note.className = "notice notice-" + notice.kind;
     note.setAttribute("role", "status");
     if (notice.kind === "booked") {
-      note.textContent = t.noticeBooked(notice.name, notice.from, notice.to, formatTime(notice.time, t));
+      note.textContent = t.noticeBooked(notice.name);
     } else if (notice.kind === "full") {
       note.textContent = t.noticeFull;
     } else {
@@ -210,6 +277,9 @@ function render() {
     }
     container.appendChild(note);
   }
+
+  // Before the loading / offline check, so saved bookings show even with no signal
+  drawMyBookings(container, t);
 
   if (status !== "ok") {
     const box = document.createElement("article");
@@ -323,11 +393,18 @@ function render() {
         message.textContent = "";
 
         try {
-          const result = await bookSeat(slot.id, name, from, to);
+          // Same requestId on every retry of this form, so a lost reply can't book twice
+          const result = await bookSeat(slot.id, name, from, to, requestId);
           if (["booked", "full", "not_found"].includes(result.status)) {
-            notice = { kind: result.status, name: name, from: from, to: to, time: limaTime(boardAt) };
+            if (result.status === "booked" && !myBookings.some(function (b) { return b.code === result.code; })) {
+              myBookings.push({ code: result.code, name: name, from: from, to: to, boardAt: boardAt, arriveAt: arriveAt });
+              myBookings.sort(function (a, b) { return new Date(a.boardAt) - new Date(b.boardAt); });
+              saveMyBookings();
+            }
+            notice = { kind: result.status, name: name };
             openSlot = null;
             await loadSlots();
+            window.scrollTo({ top: 0, behavior: "smooth" });
             return;
           }
           message.textContent = t.invalid;
@@ -346,6 +423,7 @@ function render() {
         `<button class="book-button">${t.book}</button>`;
       card.querySelector(".book-button").addEventListener("click", function () {
         openSlot = slot.id;
+        requestId = newRequestId(); // a fresh ID each time the form opens
         render();
       });
     }

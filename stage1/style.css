@@ -239,3 +239,10 @@ button {
   font-size: 0.9rem;
   color: #555;
 }
+
+/* Fare and how to pay */
+.pay-info {
+  font-size: 0.9rem;
+  color: #555;
+  margin: 4px 0 8px;
+}

@@ -15,7 +15,8 @@ const texts = {
     from: "Desde",
     to: "Hasta",
     swap: "Cambiar dirección",
-    journey: (from, to, minutes) => from + " → " + to + " · aprox. " + minutes + " min",
+    journey: (from, to, minutes, fare) => from + " → " + to + " · aprox. " + minutes + " min · " + fare,
+    payInfo: "Pagas al chofer: efectivo o Yape/Plin.",
     bookedOf: (n, cap) => n + " de " + cap + " reservados",
     almostFull: "¡Casi llena!",
     leaves: (stop, time) => "Sale de " + stop + " a las " + time + ", o antes si se llena.",
@@ -38,8 +39,9 @@ const texts = {
     myBookings: "Tus reservas en este teléfono",
     showDriver: "Muestra este código al chofer.",
     whatsapp: "Enviar por WhatsApp",
-    waMessage: (code, when, from, to, name) =>
-      "✅ Van reservada\nCódigo: " + code + "\n" + when + "\n" + from + " → " + to + "\nNombre: " + name,
+    waMessage: (code, when, from, to, name, fare) =>
+      "✅ Van reservada\nCódigo: " + code + "\n" + when + "\n" + from + " → " + to + "\nNombre: " + name +
+      (fare ? "\nPrecio: " + fare + " (efectivo o Yape/Plin)" : ""),
     cancelLink: "Cancelar reserva",
     cancelQuestion: "¿Cancelar esta reserva?",
     cancelYes: "Sí, cancelar",
@@ -47,7 +49,6 @@ const texts = {
     cancelling: "Cancelando...",
     tooLate: "Ya no se puede cancelar: faltan menos de 30 minutos para la salida. Avisa al chofer.",
     cancelError: "No se pudo cancelar. Revisa tu señal e intenta de nuevo."
-    
   },
   en: {
     title: "Van Lobitos ↔ Talara",
@@ -64,7 +65,8 @@ const texts = {
     from: "From",
     to: "To",
     swap: "Swap direction",
-    journey: (from, to, minutes) => from + " → " + to + " · about " + minutes + " min",
+    journey: (from, to, minutes, fare) => from + " → " + to + " · about " + minutes + " min · " + fare,
+    payInfo: "Pay the driver: cash or Yape/Plin.",
     bookedOf: (n, cap) => n + " of " + cap + " booked",
     almostFull: "Almost full!",
     leaves: (stop, time) => "Leaves " + stop + " at " + time + ", or earlier if full.",
@@ -87,8 +89,9 @@ const texts = {
     myBookings: "Your bookings on this phone",
     showDriver: "Show this code to the driver.",
     whatsapp: "Send to WhatsApp",
-    waMessage: (code, when, from, to, name) =>
-      "✅ Van booked\nCode: " + code + "\n" + when + "\n" + from + " → " + to + "\nName: " + name,
+    waMessage: (code, when, from, to, name, fare) =>
+      "✅ Van booked\nCode: " + code + "\n" + when + "\n" + from + " → " + to + "\nName: " + name +
+      (fare ? "\nFare: " + fare + " (cash or Yape/Plin)" : ""),
     cancelLink: "Cancel booking",
     cancelQuestion: "Cancel this booking?",
     cancelYes: "Yes, cancel",
@@ -102,6 +105,7 @@ const texts = {
 // 2. REAL data from Supabase. Starts empty and is filled by loadSlots()
 let slots = [];
 let stops = []; // [{ name, km, minutes }], furthest from Talara first
+let fares = {}; // { weekday: {...}, weekend: {...} } from Supabase
 let from = null; // the rider's start stop
 let to = null; // the rider's end stop
 let status = "loading"; // "loading", "ok" or "error"
@@ -208,6 +212,27 @@ function lineStart(tripDirection) {
   return tripDirection === "to_talara" ? sorted[0].name : sorted[sorted.length - 1].name;
 }
 
+// Saturday or Sunday in Lima?
+function isWeekend(isoString) {
+  const day = new Date(isoString).toLocaleDateString("en-US", { timeZone: "America/Lima", weekday: "short" });
+  return day === "Sat" || day === "Sun";
+}
+
+// Fare for a trip: a share of the full-route price by km, rounded up, never below the minimum
+function fareFor(fromName, toName, departsIso) {
+  const f = fares[isWeekend(departsIso) ? "weekend" : "weekday"];
+  const kms = stops.map(function (s) { return s.km; });
+  const fullKm = Math.max(...kms) - Math.min(...kms);
+  const share = f.full * Math.abs(kmOf(fromName) - kmOf(toName)) / fullKm;
+  const rounded = Math.ceil(share / f.step - 0.000001) * f.step; // tiny nudge so 4.0000001 doesn't round up to 4.50
+  return Math.max(f.minimum, rounded);
+}
+
+// 2.5 → "S/ 2.50"
+function money(amount) {
+  return new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(amount);
+}
+
 // Ask Supabase to run one of our database functions and give back its rows
 async function callRpc(name, params) {
   const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, {
@@ -219,17 +244,21 @@ async function callRpc(name, params) {
   return response.json();
 }
 
-// Ask Supabase for the departures and the stops, then draw the page
+// Ask Supabase for the departures, stops and fares, then draw the page
 async function loadSlots() {
   status = "loading";
   render();
   try {
-    // Both requests go out at once; if either fails, the page shows "try again"
-    const [slotRows, stopRows] = await Promise.all([callRpc("get_slots"), callRpc("get_stops")]);
+    // All three requests go out at once; if any fails, the page shows "try again"
+    const [slotRows, stopRows, fareRows] = await Promise.all([callRpc("get_slots"), callRpc("get_stops"), callRpc("get_fares")]);
     slots = slotRows.map(function (row) {
       return { id: row.trip_id, departs: row.departs_at, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked, vehicle: { es: row.vehicle_es, en: row.vehicle_en }, direction: row.direction };
     });
     stops = stopRows.map(function (row) { return { name: row.name, km: Number(row.km_from_talara), minutes: Number(row.minutes_from_talara) }; });
+    fares = {};
+    fareRows.forEach(function (row) {
+      fares[row.day_type] = { full: Number(row.full_route), minimum: Number(row.minimum), step: Number(row.round_up_to) };
+    });
 
     // First visit (or a stop was switched off): start at the far end, go to the other end
     const names = stops.map(function (s) { return s.name; });
@@ -287,7 +316,8 @@ function drawMyBookings(container, t) {
 
   for (const b of myBookings) {
     const when = dayLabel(b.boardAt, t) + " · " + formatTime(limaTime(b.boardAt), t);
-    const waText = t.waMessage(b.code, when, b.from, b.to, b.name);
+    const fareText = b.fare != null ? money(b.fare) : null; // older tickets have no fare
+    const waText = t.waMessage(b.code, when, b.from, b.to, b.name, fareText);
 
     let actions = `<a class="whatsapp" href="https://wa.me/?text=${encodeURIComponent(waText)}" target="_blank" rel="noopener">${t.whatsapp}</a>`;
     if (cancelling === b.code) {
@@ -306,6 +336,7 @@ function drawMyBookings(container, t) {
       `<p class="ticket-code">${b.code}</p>` +
       `<p>${when} → ${formatTime(limaTime(b.arriveAt), t)}</p>` +
       `<p>${b.from} → ${b.to} · ${escapeHtml(b.name)}</p>` +
+      (fareText ? `<p>${fareText} · ${t.payInfo}</p>` : "") +
       `<p class="ticket-hint">${t.showDriver}</p>` +
       actions;
     box.appendChild(ticket);
@@ -459,12 +490,14 @@ function render() {
     const arriveMin = minutesAfterStart(to, slot.direction);
     const boardAt = addMinutes(slot.departs, boardMin);
     const arriveAt = addMinutes(slot.departs, arriveMin);
+    const fare = fareFor(from, to, slot.departs);
     const top =
       `<p class="slot-day">${dayLabel(boardAt, t)}</p>` +
       `<h2>${formatTime(limaTime(boardAt), t)} <span class="arrow">→</span> ${formatTime(limaTime(arriveAt), t)}</h2>` +
-      `<p class="slot-route">${t.journey(from, to, arriveMin - boardMin)}</p>`;
+      `<p class="slot-route">${t.journey(from, to, arriveMin - boardMin, money(fare))}</p>`;
 
-        const almostFull = seatsLeft > 0 && seatsLeft <= 2;
+    // The seats-filling bar, the seat count, and when the van leaves the start of the line
+    const almostFull = seatsLeft > 0 && seatsLeft <= 2;
     const seatsInfo =
       seatBar(slot.booked, slot.capacity) +
       `<p class="seats-count">` +
@@ -485,6 +518,7 @@ function render() {
         seatsInfo +
         `<form class="book-form">` +
           `<label>${t.nameLabel}<input name="first_name" maxlength="30" autocomplete="given-name"></label>` +
+          `<p class="pay-info">${t.payInfo}</p>` +
           `<p class="form-message" role="alert"></p>` +
           `<button type="submit">${t.confirm}</button>` +
           `<button type="button" class="secondary">${t.cancel}</button>` +
@@ -521,6 +555,7 @@ function render() {
                 code: result.code, name: name, from: from, to: to,
                 boardAt: boardAt, arriveAt: arriveAt,
                 departs: slot.departs, // for the 30-minute cancel cut-off
+                fare: fare, // what the rider pays the driver
                 requestId: requestId // this phone's proof, needed to cancel
               });
               myBookings.sort(function (a, b) { return new Date(a.boardAt) - new Date(b.boardAt); });

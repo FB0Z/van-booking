@@ -246,3 +246,11 @@ button {
   color: #555;
   margin: 4px 0 8px;
 }
+
+/* Day headings, Trainline-style */
+.day-heading {
+  font-size: 1rem;
+  margin: 20px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #d0d5dd;
+}

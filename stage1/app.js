@@ -174,6 +174,15 @@ function dayLabel(isoString, t) {
   });
 }
 
+// Heading for a day of departures: "Hoy · mar 27 oct", or just "jue 5 nov"
+function dayHeading(isoString, t) {
+  const date = new Date(isoString).toLocaleDateString(t.locale, {
+    timeZone: "America/Lima", weekday: "short", day: "numeric", month: "short"
+  });
+  const word = dayLabel(isoString, t);
+  return word === date ? date : word + " · " + date;
+}
+
 // How far a stop is from Talara, in km
 function kmOf(name) {
   return stops.find(function (s) { return s.name === name; }).km;
@@ -482,6 +491,7 @@ function render() {
     return;
   }
 
+  let lastDay = null; // so each day gets one heading
   for (const slot of shown) {
     const seatsLeft = slot.capacity - slot.booked;
 
@@ -491,8 +501,18 @@ function render() {
     const boardAt = addMinutes(slot.departs, boardMin);
     const arriveAt = addMinutes(slot.departs, arriveMin);
     const fare = fareFor(from, to, slot.departs);
+
+    // A new day starts: put a heading above its first card
+    const day = limaDay(new Date(boardAt));
+    if (day !== lastDay) {
+      const heading = document.createElement("h2");
+      heading.className = "day-heading";
+      heading.textContent = dayHeading(boardAt, t);
+      container.appendChild(heading);
+      lastDay = day;
+    }
+
     const top =
-      `<p class="slot-day">${dayLabel(boardAt, t)}</p>` +
       `<h2>${formatTime(limaTime(boardAt), t)} <span class="arrow">→</span> ${formatTime(limaTime(arriveAt), t)}</h2>` +
       `<p class="slot-route">${t.journey(from, to, arriveMin - boardMin, money(fare))}</p>`;
 

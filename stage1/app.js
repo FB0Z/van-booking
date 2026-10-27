@@ -26,6 +26,8 @@ const texts = {
     noticeBooked: (name) => "¡Listo, " + name + "! Asiento reservado. Tu código está abajo.",
     noticeFull: "Esa van ya se llenó. Elige otra salida.",
     noticeGone: "Esa salida ya no está disponible.",
+    noticeCancelled: "Reserva cancelada. Tu asiento queda libre para otra persona.",
+    noticeMissing: "No encontramos esa reserva. La quitamos de este teléfono.",
     today: "Hoy",
     tomorrow: "Mañana",
     locale: "es-PE",
@@ -34,7 +36,14 @@ const texts = {
     showDriver: "Muestra este código al chofer.",
     whatsapp: "Enviar por WhatsApp",
     waMessage: (code, when, from, to, name) =>
-      "✅ Van reservada\nCódigo: " + code + "\n" + when + "\n" + from + " → " + to + "\nNombre: " + name
+      "✅ Van reservada\nCódigo: " + code + "\n" + when + "\n" + from + " → " + to + "\nNombre: " + name,
+    cancelLink: "Cancelar reserva",
+    cancelQuestion: "¿Cancelar esta reserva?",
+    cancelYes: "Sí, cancelar",
+    cancelNo: "Mantenerla",
+    cancelling: "Cancelando...",
+    tooLate: "Ya no se puede cancelar: faltan menos de 30 minutos para la salida. Avisa al chofer.",
+    cancelError: "No se pudo cancelar. Revisa tu señal e intenta de nuevo."
   },
   en: {
     title: "Van Lobitos ↔ Talara",
@@ -62,6 +71,8 @@ const texts = {
     noticeBooked: (name) => "Done, " + name + "! Seat booked. Your code is below.",
     noticeFull: "That van just filled up. Please choose another departure.",
     noticeGone: "That departure is no longer available.",
+    noticeCancelled: "Booking cancelled. Your seat is free for someone else.",
+    noticeMissing: "We couldn't find that booking, so we removed it from this phone.",
     today: "Today",
     tomorrow: "Tomorrow",
     locale: "en-GB",
@@ -70,7 +81,14 @@ const texts = {
     showDriver: "Show this code to the driver.",
     whatsapp: "Send to WhatsApp",
     waMessage: (code, when, from, to, name) =>
-      "✅ Van booked\nCode: " + code + "\n" + when + "\n" + from + " → " + to + "\nName: " + name
+      "✅ Van booked\nCode: " + code + "\n" + when + "\n" + from + " → " + to + "\nName: " + name,
+    cancelLink: "Cancel booking",
+    cancelQuestion: "Cancel this booking?",
+    cancelYes: "Yes, cancel",
+    cancelNo: "Keep it",
+    cancelling: "Cancelling...",
+    tooLate: "It's too late to cancel online: the van leaves in less than 30 minutes. Please tell the driver.",
+    cancelError: "Could not cancel. Check your signal and try again."
   }
 };
 
@@ -82,8 +100,11 @@ let to = null; // the rider's end stop
 let status = "loading"; // "loading", "ok" or "error"
 let openSlot = null; // the trip id whose booking form is open, or null
 let requestId = null; // one ID per booking attempt, so a retry can't book twice
-let notice = null; // the message shown after a booking attempt, or null
+let cancelling = null; // the booking code whose "Cancel this booking?" step is open, or null
+let notice = null; // the message shown after a booking or cancel, or null
 let myBookings = loadMyBookings(); // this phone's bookings, saved in the browser
+
+const CANCEL_CUTOFF_MINUTES = 30; // riders can cancel until 30 minutes before the van leaves
 
 // Read this phone's saved bookings, dropping trips that have already arrived
 function loadMyBookings() {
@@ -166,11 +187,11 @@ function addMinutes(isoString, minutes) {
 }
 
 // Ask Supabase to run one of our database functions and give back its rows
-async function callRpc(name) {
+async function callRpc(name, params) {
   const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, {
     method: "POST",
     headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-    body: "{}"
+    body: JSON.stringify(params || {})
   });
   if (!response.ok) throw new Error("Server answered " + response.status);
   return response.json();
@@ -202,13 +223,13 @@ async function loadSlots() {
 
 // Ask the database to book one seat. It answers with a status and a booking code.
 async function bookSeat(tripId, name, boarding, dropoff, attemptId) {
-  const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/book_seat", {
-    method: "POST",
-    headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ p_trip_id: tripId, p_first_name: name, p_boarding_stop: boarding, p_dropoff_stop: dropoff, p_request_id: attemptId })
-  });
-  if (!response.ok) throw new Error("Server answered " + response.status);
-  const rows = await response.json();
+  const rows = await callRpc("book_seat", { p_trip_id: tripId, p_first_name: name, p_boarding_stop: boarding, p_dropoff_stop: dropoff, p_request_id: attemptId });
+  return rows[0];
+}
+
+// Ask the database to cancel a booking. Needs the code AND this phone's hidden ID.
+async function cancelBooking(code, attemptId) {
+  const rows = await callRpc("cancel_booking", { p_code: code, p_request_id: attemptId });
   return rows[0];
 }
 
@@ -226,6 +247,13 @@ function stopOptions(selected, blocked) {
   }).join("");
 }
 
+// Can this saved booking still be cancelled from this phone?
+function canCancel(b) {
+  if (!b.requestId || !b.departs) return false; // older tickets saved before cancelling existed
+  const cutoff = new Date(b.departs).getTime() - CANCEL_CUTOFF_MINUTES * 60000;
+  return Date.now() < cutoff;
+}
+
 // The rider's own bookings, saved on this phone. Shown even with no signal.
 function drawMyBookings(container, t) {
   myBookings = myBookings.filter(function (b) { return new Date(b.arriveAt) > new Date(); });
@@ -237,7 +265,19 @@ function drawMyBookings(container, t) {
 
   for (const b of myBookings) {
     const when = dayLabel(b.boardAt, t) + " · " + formatTime(limaTime(b.boardAt), t);
-    const message = t.waMessage(b.code, when, b.from, b.to, b.name);
+    const waText = t.waMessage(b.code, when, b.from, b.to, b.name);
+
+    let actions = `<a class="whatsapp" href="https://wa.me/?text=${encodeURIComponent(waText)}" target="_blank" rel="noopener">${t.whatsapp}</a>`;
+    if (cancelling === b.code) {
+      actions +=
+        `<p class="cancel-question">${t.cancelQuestion}</p>` +
+        `<p class="form-message" role="alert"></p>` +
+        `<button type="button" class="cancel-yes">${t.cancelYes}</button>` +
+        `<button type="button" class="secondary cancel-no">${t.cancelNo}</button>`;
+    } else if (canCancel(b)) {
+      actions += `<button type="button" class="cancel-link">${t.cancelLink}</button>`;
+    }
+
     const ticket = document.createElement("article");
     ticket.className = "ticket";
     ticket.innerHTML =
@@ -245,8 +285,58 @@ function drawMyBookings(container, t) {
       `<p>${when} → ${formatTime(limaTime(b.arriveAt), t)}</p>` +
       `<p>${b.from} → ${b.to} · ${escapeHtml(b.name)}</p>` +
       `<p class="ticket-hint">${t.showDriver}</p>` +
-      `<a class="whatsapp" href="https://wa.me/?text=${encodeURIComponent(message)}" target="_blank" rel="noopener">${t.whatsapp}</a>`;
+      actions;
     box.appendChild(ticket);
+
+    const link = ticket.querySelector(".cancel-link");
+    if (link) {
+      link.addEventListener("click", function () {
+        cancelling = b.code;
+        render();
+      });
+    }
+
+    const no = ticket.querySelector(".cancel-no");
+    if (no) {
+      no.addEventListener("click", function () {
+        cancelling = null;
+        render();
+      });
+    }
+
+    const yes = ticket.querySelector(".cancel-yes");
+    if (yes) {
+      yes.addEventListener("click", async function () {
+        const msg = ticket.querySelector(".form-message");
+        const buttons = ticket.querySelectorAll("button");
+
+        // Lock the buttons so a double tap sends only one cancel
+        buttons.forEach(function (x) { x.disabled = true; });
+        yes.textContent = t.cancelling;
+        msg.textContent = "";
+
+        try {
+          const result = await cancelBooking(b.code, b.requestId);
+          if (result.status === "too_late") {
+            msg.textContent = t.tooLate;
+          } else {
+            // "cancelled", or "not_found" (the booking no longer exists): take the ticket off this phone
+            myBookings = myBookings.filter(function (x) { return x.code !== b.code; });
+            saveMyBookings();
+            cancelling = null;
+            notice = { kind: result.status === "cancelled" ? "cancelled" : "missing" };
+            await loadSlots();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+          }
+        } catch (error) {
+          console.error(error);
+          msg.textContent = t.cancelError;
+        }
+        buttons.forEach(function (x) { x.disabled = false; });
+        yes.textContent = t.cancelYes;
+      });
+    }
   }
   container.appendChild(box);
 }
@@ -268,13 +358,12 @@ function render() {
     const note = document.createElement("p");
     note.className = "notice notice-" + notice.kind;
     note.setAttribute("role", "status");
-    if (notice.kind === "booked") {
-      note.textContent = t.noticeBooked(notice.name);
-    } else if (notice.kind === "full") {
-      note.textContent = t.noticeFull;
-    } else {
-      note.textContent = t.noticeGone;
-    }
+    let words = t.noticeGone;
+    if (notice.kind === "booked") words = t.noticeBooked(notice.name);
+    else if (notice.kind === "full") words = t.noticeFull;
+    else if (notice.kind === "cancelled") words = t.noticeCancelled;
+    else if (notice.kind === "missing") words = t.noticeMissing;
+    note.textContent = words;
     container.appendChild(note);
   }
 
@@ -397,7 +486,12 @@ function render() {
           const result = await bookSeat(slot.id, name, from, to, requestId);
           if (["booked", "full", "not_found"].includes(result.status)) {
             if (result.status === "booked" && !myBookings.some(function (b) { return b.code === result.code; })) {
-              myBookings.push({ code: result.code, name: name, from: from, to: to, boardAt: boardAt, arriveAt: arriveAt });
+              myBookings.push({
+                code: result.code, name: name, from: from, to: to,
+                boardAt: boardAt, arriveAt: arriveAt,
+                departs: slot.departs, // for the 30-minute cancel cut-off
+                requestId: requestId // this phone's proof, needed to cancel
+              });
               myBookings.sort(function (a, b) { return new Date(a.boardAt) - new Date(b.boardAt); });
               saveMyBookings();
             }

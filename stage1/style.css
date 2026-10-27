@@ -159,3 +159,38 @@ button {
   text-align: center;
   text-decoration: none;
 }
+
+/* Cancelling a booking */
+.ticket .cancel-link {
+  display: block;
+  width: auto;
+  margin: 12px auto 0;
+  padding: 4px 8px;
+  background: none;
+  border: none;
+  color: #b42318;
+  text-decoration: underline;
+  font-size: 0.95rem;
+}
+
+.ticket .cancel-question {
+  margin-top: 16px;
+  font-weight: bold;
+}
+
+.ticket .cancel-yes {
+  background: #b42318;
+  border-color: #b42318;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.notice-cancelled {
+  background: #e7f5ec;
+  color: #134d2c;
+}
+
+.notice-missing {
+  background: #fff4e0;
+  color: #6b4200;
+}

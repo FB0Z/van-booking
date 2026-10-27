@@ -100,3 +100,20 @@ button {
   padding: 0;
   font-size: 22px;
 }
+
+/* Card: date on top, your times, your journey */
+.slot-day,
+.slot-route {
+  font-size: 0.9rem;
+  color: #555;
+  margin: 0;
+}
+
+.slot h2 {
+  margin: 2px 0;
+}
+
+.slot .arrow {
+  font-weight: normal;
+  color: #777;
+}

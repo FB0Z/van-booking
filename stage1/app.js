@@ -15,6 +15,7 @@ const texts = {
     from: "Desde",
     to: "Hasta",
     swap: "Cambiar dirección",
+    journey: (from, to, minutes) => from + " → " + to + " · aprox. " + minutes + " min",
     nameLabel: "Tu nombre (sin apellido)",
     confirm: "Confirmar",
     cancel: "Cancelar",
@@ -45,6 +46,7 @@ const texts = {
     from: "From",
     to: "To",
     swap: "Swap direction",
+    journey: (from, to, minutes) => from + " → " + to + " · about " + minutes + " min",
     nameLabel: "Your first name (no surname)",
     confirm: "Confirm",
     cancel: "Cancel",
@@ -108,6 +110,19 @@ function direction() {
   return kmOf(from) > kmOf(to) ? "to_talara" : "to_lobitos";
 }
 
+// Minutes after the van leaves the start of the line until it reaches a stop
+function minutesAfterStart(name, tripDirection) {
+  const all = stops.map(function (s) { return s.minutes; });
+  const start = tripDirection === "to_talara" ? Math.max(...all) : Math.min(...all);
+  const stop = stops.find(function (s) { return s.name === name; });
+  return Math.abs(start - stop.minutes);
+}
+
+// A moment some minutes later, like "the departure + 8 minutes"
+function addMinutes(isoString, minutes) {
+  return new Date(new Date(isoString).getTime() + minutes * 60000).toISOString();
+}
+
 // Ask Supabase to run one of our database functions and give back its rows
 async function callRpc(name) {
   const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, {
@@ -129,7 +144,7 @@ async function loadSlots() {
     slots = slotRows.map(function (row) {
       return { id: row.trip_id, departs: row.departs_at, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked, vehicle: { es: row.vehicle_es, en: row.vehicle_en }, direction: row.direction };
     });
-    stops = stopRows.map(function (row) { return { name: row.name, km: Number(row.km_from_talara) }; });
+      stops = stopRows.map(function (row) { return { name: row.name, km: Number(row.km_from_talara), minutes: Number(row.minutes_from_talara) }; });
 
     // First visit (or a stop was switched off): start at the far end, go to the other end
     const names = stops.map(function (s) { return s.name; });
@@ -257,16 +272,26 @@ function render() {
 
   for (const slot of shown) {
     const seatsLeft = slot.capacity - slot.booked;
-    const heading = dayLabel(slot.departs, t) + " · " + formatTime(slot.time, t);
+
+    // This rider's own times: when the van reaches their From stop, and their To stop
+    const boardMin = minutesAfterStart(from, slot.direction);
+    const arriveMin = minutesAfterStart(to, slot.direction);
+    const boardAt = addMinutes(slot.departs, boardMin);
+    const arriveAt = addMinutes(slot.departs, arriveMin);
+    const top =
+      `<p class="slot-day">${dayLabel(boardAt, t)}</p>` +
+      `<h2>${formatTime(limaTime(boardAt), t)} <span class="arrow">→</span> ${formatTime(limaTime(arriveAt), t)}</h2>` +
+      `<p class="slot-route">${t.journey(from, to, arriveMin - boardMin)}</p>`;
+
     const card = document.createElement("article");
     card.className = "slot";
 
     if (seatsLeft <= 0) {
       card.classList.add("slot-full");
-      card.innerHTML = `<h2>${heading}</h2><p>${t.full}</p>`;
+      card.innerHTML = top + `<p>${t.full}</p>`;
     } else if (openSlot === slot.id) {
       card.innerHTML =
-        `<h2>${heading}</h2>` +
+        top +
         `<p>${t.seatsLeft(seatsLeft)}</p>` +
         `<form class="book-form">` +
           `<label>${t.nameLabel}<input name="first_name" maxlength="30" autocomplete="given-name"></label>` +
@@ -300,7 +325,7 @@ function render() {
         try {
           const result = await bookSeat(slot.id, name, from, to);
           if (["booked", "full", "not_found"].includes(result.status)) {
-            notice = { kind: result.status, name: name, from: from, to: to, time: slot.time };
+            notice = { kind: result.status, name: name, from: from, to: to, time: limaTime(boardAt) };
             openSlot = null;
             await loadSlots();
             return;
@@ -316,7 +341,7 @@ function render() {
 
     } else {
       card.innerHTML =
-        `<h2>${heading}</h2>` +
+        top +
         `<p>${t.seatsLeft(seatsLeft)}</p>` +
         `<button class="book-button">${t.book}</button>`;
       card.querySelector(".book-button").addEventListener("click", function () {

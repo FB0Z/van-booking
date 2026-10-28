@@ -15,7 +15,7 @@
     </header>
 
     <!-- Shown when nobody is signed in -->
-    <form id="login-form">
+    <form id="login-form" class="card">
       <label for="email" data-t="email">Correo</label>
       <input id="email" type="email" autocomplete="username" required>
 
@@ -27,9 +27,50 @@
 
     <!-- Shown when a driver is signed in -->
     <section id="signed-in" hidden>
-      <p id="welcome"></p>
-      <p id="db-check"></p>
-      <button id="logout-btn" type="button" data-t="logout">Salir</button>
+      <div class="who">
+        <p id="welcome"></p>
+        <button id="logout-btn" type="button" class="secondary" data-t="logout">Salir</button>
+      </div>
+
+      <!-- Their status and details -->
+      <div id="status-card" class="card" hidden>
+        <p id="status-badge" class="badge"></p>
+        <p id="status-text"></p>
+        <p id="status-note" class="note"></p>
+        <p id="soat-warning" class="warning" data-t="soatWarn" hidden></p>
+        <dl id="summary"></dl>
+        <button id="edit-btn" type="button" class="secondary" data-t="edit">Editar mis datos</button>
+      </div>
+
+      <!-- Profile form: first time, or when editing -->
+      <form id="profile-form" class="card" hidden>
+        <h2 data-t="profileTitle">Tus datos de conductor</h2>
+        <p id="profile-intro"></p>
+
+        <label for="full-name" data-t="fullName">Nombre completo</label>
+        <input id="full-name" autocomplete="name" maxlength="80" required>
+
+        <label for="phone" data-t="phone">Celular</label>
+        <input id="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="987 654 321" required>
+
+        <label for="vehicle" data-t="vehicle">Vehículo</label>
+        <select id="vehicle" required></select>
+
+        <label for="plate" data-t="plate">Placa</label>
+        <input id="plate" maxlength="10" autocapitalize="characters" placeholder="ABC-123" required>
+
+        <label for="seats" data-t="seats">Asientos para pasajeros</label>
+        <input id="seats" type="number" inputmode="numeric" min="1" max="20" required>
+
+        <label for="licence" data-t="licence">Número de brevete</label>
+        <input id="licence" maxlength="15" autocapitalize="characters" required>
+
+        <label for="soat" data-t="soat">SOAT vence el</label>
+        <input id="soat" type="date" required>
+
+        <button id="save-btn" type="submit" data-t="send">Enviar para revisión</button>
+        <button id="cancel-edit-btn" type="button" class="secondary" data-t="cancel" hidden>Cancelar</button>
+      </form>
     </section>
 
     <p id="message" role="status"></p>

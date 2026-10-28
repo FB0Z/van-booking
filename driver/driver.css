@@ -2,8 +2,15 @@
   --bg: #f7f5f0;
   --card: #ffffff;
   --text: #1f2933;
+  --muted: #5f6b76;
   --accent: #0b6e4f;
   --border: #c9ccd1;
+  --amber-bg: #fff4d6;
+  --amber: #8a5a00;
+  --red-bg: #fde8e7;
+  --red: #b42318;
+  --green-bg: #e3f4ec;
+  --grey-bg: #e4e7eb;
 }
 
 * { box-sizing: border-box; }
@@ -30,26 +37,32 @@ header {
 }
 
 h1 { font-size: 1.5rem; margin: 0; }
+h2 { font-size: 1.2rem; margin: 0; }
 
-form,
-#signed-in {
+.card {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 20px;
+  margin-top: 16px;
   padding: 20px;
   background: var(--card);
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
+.card p { margin: 4px 0; }
+
 label { font-weight: 600; margin-top: 8px; }
 
-input {
+input,
+select {
   font-size: 1rem;
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  width: 100%;
 }
 
 button {
@@ -64,6 +77,11 @@ button {
 
 button:disabled { opacity: 0.6; }
 
+button.secondary {
+  background: var(--grey-bg);
+  color: var(--text);
+}
+
 #lang-btn {
   background: transparent;
   color: var(--accent);
@@ -71,16 +89,51 @@ button:disabled { opacity: 0.6; }
   padding: 8px 12px;
 }
 
-#login-btn { margin-top: 16px; }
+#login-btn,
+#save-btn { margin-top: 16px; }
 
-#logout-btn {
-  background: #e4e7eb;
-  color: var(--text);
+/* Signed in as ... [Salir] */
+.who {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
 }
 
-#signed-in p { margin: 4px 0; }
+.who p { margin: 0; color: var(--muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+.who button { padding: 8px 12px; flex-shrink: 0; }
+
+/* Status badge */
+.badge {
+  align-self: flex-start;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.badge-pending   { background: var(--amber-bg); color: var(--amber); }
+.badge-verified  { background: var(--green-bg); color: var(--accent); }
+.badge-rejected  { background: var(--red-bg);   color: var(--red); }
+.badge-suspended { background: var(--grey-bg);  color: var(--text); }
+
+.note    { font-style: italic; }
+.warning { color: var(--red); font-weight: 600; }
+
+/* Their details */
+dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  margin: 8px 0;
+  font-size: 0.95rem;
+}
+
+dt { color: var(--muted); }
+dd { margin: 0; overflow-wrap: anywhere; }
 
 #message { margin-top: 16px; min-height: 1.5em; }
 
-/* form and #signed-in use display:flex, so make "hidden" win */
+/* .card uses display:flex, so make "hidden" win */
 [hidden] { display: none !important; }

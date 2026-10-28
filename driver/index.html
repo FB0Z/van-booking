@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Conductores · Van Lobitos → Talara</title>
+  <link rel="stylesheet" href="driver.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1 data-t="title">Conductores</h1>
+      <button id="lang-btn" type="button" data-t="lang">English</button>
+    </header>
+
+    <!-- Shown when nobody is signed in -->
+    <form id="login-form">
+      <label for="email" data-t="email">Correo</label>
+      <input id="email" type="email" autocomplete="username" required>
+
+      <label for="password" data-t="password">Contraseña</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+
+      <button id="login-btn" type="submit" data-t="login">Entrar</button>
+    </form>
+
+    <!-- Shown when a driver is signed in -->
+    <section id="signed-in" hidden>
+      <p id="welcome"></p>
+      <p id="db-check"></p>
+      <button id="logout-btn" type="button" data-t="logout">Salir</button>
+    </section>
+
+    <p id="message" role="status"></p>
+  </main>
+
+  <!-- Same Supabase URL and publishable key as the rider page -->
+  <script src="../stage1/config.js"></script>
+  <script src="driver.js"></script>
+</body>
+</html>

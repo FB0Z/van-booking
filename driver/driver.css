@@ -133,6 +133,78 @@ dl {
 dt { color: var(--muted); }
 dd { margin: 0; overflow-wrap: anywhere; }
 
+/* Proof photos */
+#docs {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--grey-bg);
+}
+
+#docs h2 { font-size: 1.05rem; }
+#docs-intro { color: var(--muted); font-size: 0.95rem; }
+
+#doc-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.doc {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.doc-name { font-weight: 600; }
+.doc-state { font-size: 0.9rem; }
+.doc-state.done    { color: var(--accent); }
+.doc-state.missing { color: var(--red); font-weight: 600; }
+
+.doc-preview {
+  grid-column: 1 / -1;
+  max-width: 100%;
+  max-height: 140px;
+  border-radius: 6px;
+  justify-self: start;
+}
+
+/* The file picker is hidden; its label looks like a button */
+.upload-btn {
+  grid-column: 1 / -1;
+  display: block;
+  text-align: center;
+  font-size: 0.95rem;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.upload-btn.replace {
+  background: var(--grey-bg);
+  color: var(--text);
+}
+
+.upload-btn.busy { opacity: 0.6; cursor: wait; }
+.upload-btn:focus-within { outline: 3px solid var(--amber); outline-offset: 2px; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 #message { margin-top: 16px; min-height: 1.5em; }
 
 /* .card uses display:flex, so make "hidden" win */

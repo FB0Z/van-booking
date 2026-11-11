@@ -1,5 +1,6 @@
 // Driver page — Stage 3.
 // Step 1: login. Step 2a: driver profile + verification status.
+// Step 2b: proof photos (licence, SOAT, vehicle) in a private storage folder.
 // Uses SUPABASE_URL and SUPABASE_KEY from ../stage1/config.js.
 // Plain fetch to Supabase, same style as the rider page (no library).
 
@@ -53,7 +54,25 @@ const TEXTS = {
     r_invalid_plate: "Revisa la placa.",
     r_invalid_seats: "Los asientos deben estar entre 1 y 20.",
     r_invalid_licence: "Revisa el número de brevete.",
-    r_soat_expired: "Ese SOAT está vencido. Se necesita un SOAT vigente."
+    r_soat_expired: "Ese SOAT está vencido. Se necesita un SOAT vigente.",
+
+    text_pending_missing: "Sube las 3 fotos de abajo para que podamos revisar tus datos.",
+    docsTitle: "Fotos de tus documentos",
+    docsIntroPending: "Sube una foto clara de cada uno. Solo el equipo puede verlas.",
+    docsIntroLocked: "Para cambiar una foto, pulsa «Editar mis datos» y envíalos de nuevo.",
+    docsUnknown: "No se pudo ver qué fotos has subido. Inténtalo cuando tengas señal.",
+    doc_licence: "Brevete",
+    doc_soat: "SOAT",
+    doc_vehicle: "Vehículo (con la placa visible)",
+    docDone: "✔ Subida",
+    docMissing: "Falta",
+    upload: "Subir foto",
+    replace: "Cambiar foto",
+    uploading: "Subiendo…",
+    photoUploaded: "Foto subida.",
+    photoBad: "No se pudo leer esa foto. Prueba con otra.",
+    photoTooBig: "La foto es demasiado grande. Prueba con otra.",
+    uploadDenied: "Ahora no puedes cambiar fotos. Pulsa «Editar mis datos» y envíalos de nuevo."
   },
   en: {
     title: "Drivers",
@@ -103,9 +122,43 @@ const TEXTS = {
     r_invalid_plate: "Check the number plate.",
     r_invalid_seats: "Seats must be between 1 and 20.",
     r_invalid_licence: "Check the licence number.",
-    r_soat_expired: "That SOAT has expired. A valid SOAT is needed."
+    r_soat_expired: "That SOAT has expired. A valid SOAT is needed.",
+
+    text_pending_missing: "Upload the 3 photos below so we can check your details.",
+    docsTitle: "Photos of your documents",
+    docsIntroPending: "Upload a clear photo of each one. Only the team can see them.",
+    docsIntroLocked: "To change a photo, press \"Edit my details\" and send them again.",
+    docsUnknown: "We couldn't see which photos you've uploaded. Try again when you have signal.",
+    doc_licence: "Driving licence",
+    doc_soat: "SOAT",
+    doc_vehicle: "Vehicle (number plate visible)",
+    docDone: "✔ Uploaded",
+    docMissing: "Missing",
+    upload: "Upload photo",
+    replace: "Change photo",
+    uploading: "Uploading…",
+    photoUploaded: "Photo uploaded.",
+    photoBad: "We couldn't read that photo. Please try another one.",
+    photoTooBig: "That photo is too big. Please try another one.",
+    uploadDenied: "You can't change photos right now. Press \"Edit my details\" and send them again."
   }
 };
+
+// ---------- Proof photos ----------
+// Each driver's photos live in the private "driver-docs" folder:
+//   driver-docs/<user id>/licence.jpg, soat.jpg, vehicle.jpg  (14-driver-docs.sql)
+const BUCKET = "driver-docs";
+const DOCS = [
+  { key: "licence", file: "licence.jpg" },
+  { key: "soat", file: "soat.jpg" },
+  { key: "vehicle", file: "vehicle.jpg" }
+];
+const MAX_SIDE = 1600;     // photos are shrunk to at most 1600 px wide/tall...
+const JPEG_QUALITY = 0.8;  // ...and saved as JPEG: about 0.3 MB instead of 3–5 MB
+
+let docs = null;           // { licence: "2026-11-10T…", … } once loaded; null = unknown
+let previews = {};         // photos just uploaded on this phone, shown as a small preview
+let uploadingKey = null;   // which photo is uploading right now
 
 // Usual passenger seats, filled in when a vehicle is chosen (the driver can change it)
 const DEFAULT_SEATS = { van: 8, mototaxi: 3, moto: 1 };
@@ -140,6 +193,8 @@ const statusNote = $("status-note");
 const soatWarning = $("soat-warning");
 const summary = $("summary");
 const editBtn = $("edit-btn");
+const docsIntro = $("docs-intro");
+const docList = $("doc-list");
 
 const profileForm = $("profile-form");
 const profileIntro = $("profile-intro");
@@ -244,10 +299,10 @@ async function getValidSession() {
   return null;
 }
 
-// Call a database function as the signed-in driver.
-// Returns its answer, or null if the session ended (the page then shows the login).
-// Throws TypeError with no connection, Error for anything else.
-async function callAsDriver(name, body) {
+// Send a request to Supabase as the signed-in driver.
+// Returns the response, or null if the session ended (the page then shows the login).
+// Throws TypeError with no connection.
+async function driverFetch(path, init) {
   const s = await getValidSession();
   if (!s) {
     showLogin();
@@ -255,17 +310,33 @@ async function callAsDriver(name, body) {
     return null;
   }
   currentSession = s;
-  const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, {
+  const headers = Object.assign(
+    { apikey: SUPABASE_KEY, Authorization: "Bearer " + s.access_token },
+    init.headers || {}
+  );
+  return fetch(SUPABASE_URL + path, Object.assign({}, init, { headers }));
+}
+
+// Call a database function as the signed-in driver.
+// Returns its answer, or null if the session ended.
+// Throws TypeError with no connection, Error for anything else.
+async function callAsDriver(name, body) {
+  const res = await driverFetch("/rest/v1/rpc/" + name, {
     method: "POST",
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: "Bearer " + s.access_token,
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body || {})
   });
+  if (res === null) return null;
   if (!res.ok) throw new Error(name + " failed: " + res.status);
   return res.json();
+}
+
+// The driver's login id, read from inside their login ticket (a JWT).
+// Their photo folder is named after it.
+function myUserId() {
+  const part = currentSession.access_token.split(".")[1];
+  const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
+  return JSON.parse(json).sub;
 }
 
 function sayProblem(err) {
@@ -276,6 +347,9 @@ function sayProblem(err) {
 function showLogin() {
   currentSession = null;
   driver = null;
+  docs = null;
+  Object.values(previews).forEach((url) => URL.revokeObjectURL(url));
+  previews = {};
   signedIn.hidden = true;
   loginForm.hidden = false;
 }
@@ -326,12 +400,174 @@ async function loadProfile() {
 
     vehicleTypes = types;
     driver = rows[0] || null;
+    docs = null;
+    if (driver) {
+      try {
+        docs = await loadDocs();
+      } catch (e) {
+        docs = null; // shown as "couldn't see which photos you've uploaded"
+      }
+    }
+    if (!currentSession) return; // session ended while loading
     say("");
     if (driver) showStatusCard();
     else startEditing();
   } catch (err) {
     sayProblem(err);
   }
+}
+
+// Which of the 3 photos are already in the driver's folder?
+async function loadDocs() {
+  const res = await driverFetch("/storage/v1/object/list/" + BUCKET, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prefix: myUserId(), limit: 20, offset: 0 })
+  });
+  if (res === null) return null;
+  if (!res.ok) throw new Error("list failed: " + res.status);
+  const items = await res.json();
+  const found = {};
+  items.forEach((item) => {
+    const doc = DOCS.find((d) => d.file === item.name);
+    if (doc) found[doc.key] = item.updated_at || item.created_at || true;
+  });
+  return found;
+}
+
+function missingDocs() {
+  return docs ? DOCS.filter((d) => !docs[d.key]).length : 0;
+}
+
+// Shrink a phone photo before sending it: saves mobile data and time on weak
+// signal. Redrawing it also removes hidden photo data, like the GPS location.
+function compressPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("photoBad"))),
+        "image/jpeg",
+        JPEG_QUALITY
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("photoBad"));
+    };
+    img.src = url;
+  });
+}
+
+// Upload one photo. Returns the small photo that was sent (for the preview),
+// or null if the session ended. Throws Error("photoBad" / "photoTooBig" /
+// "uploadDenied" / "error"), or TypeError with no connection.
+async function uploadDoc(doc, file) {
+  const blob = await compressPhoto(file);
+  const res = await driverFetch("/storage/v1/object/" + BUCKET + "/" + myUserId() + "/" + doc.file, {
+    method: "POST",
+    headers: { "Content-Type": "image/jpeg", "x-upsert": "true" },
+    body: blob
+  });
+  if (res === null) return null;
+  if (res.ok) return blob;
+
+  const data = await res.json().catch(() => ({}));
+  const text = ((data.message || "") + " " + (data.error || "")).toLowerCase();
+  const code = String(data.statusCode || res.status);
+  if (code === "413" || text.includes("size")) throw new Error("photoTooBig");
+  if (code === "403" || text.includes("row-level security") || text.includes("unauthorized")) {
+    throw new Error("uploadDenied");
+  }
+  throw new Error("error");
+}
+
+async function onPhotoChosen(doc, input) {
+  const file = input.files && input.files[0];
+  if (!file || uploadingKey) return;
+  uploadingKey = doc.key;
+  say("");
+  renderDocs();
+  try {
+    const blob = await uploadDoc(doc, file);
+    if (blob === null) return;
+    if (!docs) docs = {};
+    docs[doc.key] = new Date().toISOString();
+    if (previews[doc.key]) URL.revokeObjectURL(previews[doc.key]);
+    previews[doc.key] = URL.createObjectURL(blob);
+    say("photoUploaded");
+  } catch (err) {
+    const key = err instanceof TypeError ? "offline" : TEXTS[lang][err.message] ? err.message : "error";
+    if (key === "uploadDenied") {
+      // Their status changed (e.g. I verified them meanwhile): refresh, then explain
+      uploadingKey = null;
+      await loadProfile();
+    }
+    say(key);
+  } finally {
+    uploadingKey = null;
+    if (currentSession && driver) renderStatusCard();
+  }
+}
+
+function renderDocs() {
+  const canUpload = driver.status === "pending" && docs !== null;
+  if (docs === null) docsIntro.textContent = t("docsUnknown");
+  else if (canUpload) docsIntro.textContent = t("docsIntroPending");
+  else if (driver.status === "suspended") docsIntro.textContent = "";
+  else docsIntro.textContent = t("docsIntroLocked");
+
+  docList.innerHTML = "";
+  DOCS.forEach((doc) => {
+    const li = document.createElement("li");
+    li.className = "doc";
+
+    const name = document.createElement("span");
+    name.className = "doc-name";
+    name.textContent = t("doc_" + doc.key);
+
+    const state = document.createElement("span");
+    state.className = "doc-state";
+    if (docs !== null) {
+      const done = Boolean(docs[doc.key]);
+      state.textContent = t(done ? "docDone" : "docMissing");
+      state.classList.add(done ? "done" : "missing");
+    }
+    li.append(name, state);
+
+    if (previews[doc.key]) {
+      const img = document.createElement("img");
+      img.className = "doc-preview";
+      img.src = previews[doc.key];
+      img.alt = t("doc_" + doc.key);
+      li.appendChild(img);
+    }
+
+    if (canUpload) {
+      const busy = uploadingKey === doc.key;
+      const label = document.createElement("label");
+      label.className = "upload-btn" + (docs[doc.key] ? " replace" : "") + (busy ? " busy" : "");
+      label.textContent = t(busy ? "uploading" : docs[doc.key] ? "replace" : "upload");
+
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.className = "visually-hidden";
+      input.disabled = Boolean(uploadingKey);
+      input.addEventListener("change", () => onPhotoChosen(doc, input));
+      label.appendChild(input);
+      li.appendChild(label);
+    }
+
+    docList.appendChild(li);
+  });
 }
 
 function showStatusCard() {
@@ -344,7 +580,8 @@ function renderStatusCard() {
   const s = driver.status;
   statusBadge.textContent = t("badge_" + s);
   statusBadge.className = "badge badge-" + s;
-  statusText.textContent = t("text_" + s);
+  statusText.textContent = t(s === "pending" && missingDocs() > 0 ? "text_pending_missing" : "text_" + s);
+  renderDocs();
   statusNote.textContent = driver.status_note ? t("note") + " " + driver.status_note : "";
   statusNote.hidden = !driver.status_note;
   soatWarning.hidden = driver.soat_expires >= limaToday();

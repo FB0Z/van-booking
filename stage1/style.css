@@ -254,3 +254,43 @@ button {
   padding-bottom: 6px;
   border-bottom: 2px solid #d0d5dd;
 }
+/* Trip status set by the driver (Stage 3) */
+.slot .trip-status,
+.trip-status {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  background: #eef2f7;
+  color: #1f2933;
+}
+
+.slot .status-delayed  { background: #fff4e0; color: #7a4100; }
+.slot .status-leaving  { background: #e7f5ec; color: #134d2c; }
+.slot .status-cancelled { background: #fde8e7; color: #b42318; }
+
+.slot-cancelled {
+  background: #f2f2ef;
+  border-color: #c9c9c4;
+}
+.slot-cancelled h2 { color: #8a8a85; text-decoration: line-through; }
+
+.slot-leaving { border-color: #1e7b45; }
+
+.ticket-status {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  background: #fff4e0;
+  color: #7a4100;
+}
+.ticket-status-leaving { background: #ffffff; color: #134d2c; }
+.ticket-status-cancelled { background: #fde8e7; color: #b42318; }
+
+.ticket-cancelled {
+  background: #f7f7f4;
+  border-color: #b42318;
+  color: #4a4a46;
+}

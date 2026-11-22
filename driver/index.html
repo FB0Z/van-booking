@@ -32,6 +32,37 @@
         <button id="logout-btn" type="button" class="secondary" data-t="logout">Salir</button>
       </div>
 
+      <!-- Verified drivers: their departures and passengers (dashboard.js) -->
+      <section id="dashboard" class="card" hidden>
+        <div class="dash-head">
+          <h2 id="dash-title">Tus salidas</h2>
+          <button id="dash-refresh" type="button" class="secondary small">Actualizar</button>
+        </div>
+        <p id="dash-note" class="muted"></p>
+        <div id="trip-list"></div>
+        <p id="dash-message" role="status"></p>
+
+        <button id="add-toggle" type="button" class="secondary">+ Añadir salida</button>
+        <form id="add-form" hidden>
+          <label for="add-date" data-dt="date">Día</label>
+          <input id="add-date" type="date" required>
+
+          <label for="add-time" data-dt="time">Hora de salida</label>
+          <input id="add-time" type="time" step="300" required>
+
+          <label for="add-direction" data-dt="direction">Dirección</label>
+          <select id="add-direction" required>
+            <option value="to_talara">Lobitos → Talara</option>
+            <option value="to_lobitos">Talara → Lobitos</option>
+          </select>
+
+          <label for="add-seats" data-dt="seats">Asientos</label>
+          <input id="add-seats" type="number" inputmode="numeric" min="1" max="20" required>
+
+          <button id="add-btn" type="submit" data-dt="add">Añadir salida</button>
+        </form>
+      </section>
+
       <!-- Their status and details -->
       <div id="status-card" class="card" hidden>
         <p id="status-badge" class="badge"></p>
@@ -87,5 +118,6 @@
   <!-- Same Supabase URL and publishable key as the rider page -->
   <script src="../stage1/config.js"></script>
   <script src="driver.js"></script>
+  <script src="dashboard.js"></script>
 </body>
 </html>

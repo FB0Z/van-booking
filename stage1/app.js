@@ -48,7 +48,15 @@ const texts = {
     cancelNo: "Mantenerla",
     cancelling: "Cancelando...",
     tooLate: "Ya no se puede cancelar: faltan menos de 30 minutos para la salida. Avisa al chofer.",
-    cancelError: "No se pudo cancelar. Revisa tu señal e intenta de nuevo."
+    cancelError: "No se pudo cancelar. Revisa tu señal e intenta de nuevo.",
+    // Trip status, set by the driver (Stage 3)
+    statusLeaving: "🚐 La van está saliendo ahora. Ya no se puede reservar.",
+    statusDelayed: (m) => "⏱ Retraso de unos " + m + " min. Las horas ya incluyen el retraso.",
+    statusFull: "El chofer marcó la van como llena.",
+    statusCancelled: "✖ El chofer canceló esta salida.",
+    ticketCancelled: "⚠ El chofer canceló esta salida. Elige otra salida abajo.",
+    ticketDelayed: (m) => "⏱ La van va con unos " + m + " min de retraso. Las horas ya están actualizadas.",
+    ticketLeaving: "🚐 La van ya está saliendo."
   },
   en: {
     title: "Van Lobitos ↔ Talara",
@@ -98,7 +106,15 @@ const texts = {
     cancelNo: "Keep it",
     cancelling: "Cancelling...",
     tooLate: "It's too late to cancel online: the van leaves in less than 30 minutes. Please tell the driver.",
-    cancelError: "Could not cancel. Check your signal and try again."
+    cancelError: "Could not cancel. Check your signal and try again.",
+    // Trip status, set by the driver (Stage 3)
+    statusLeaving: "🚐 The van is leaving now. Booking is closed.",
+    statusDelayed: (m) => "⏱ Running about " + m + " min late. Times already include the delay.",
+    statusFull: "The driver has marked this van as full.",
+    statusCancelled: "✖ The driver cancelled this departure.",
+    ticketCancelled: "⚠ The driver cancelled this departure. Please choose another one below.",
+    ticketDelayed: (m) => "⏱ The van is running about " + m + " min late. Times are updated.",
+    ticketLeaving: "🚐 The van is leaving now."
   }
 };
 
@@ -261,7 +277,11 @@ async function loadSlots() {
     // All three requests go out at once; if any fails, the page shows "try again"
     const [slotRows, stopRows, fareRows] = await Promise.all([callRpc("get_slots"), callRpc("get_stops"), callRpc("get_fares")]);
     slots = slotRows.map(function (row) {
-      return { id: row.trip_id, departs: row.departs_at, time: limaTime(row.departs_at), capacity: row.capacity, booked: row.booked, vehicle: { es: row.vehicle_es, en: row.vehicle_en }, direction: row.direction };
+      // A delayed trip leaves later: every time on the card moves by the delay
+      const status = row.status || "scheduled";
+      const delay = status === "delayed" ? (row.delay_minutes || 0) : 0;
+      const departs = addMinutes(row.departs_at, delay);
+      return { id: row.trip_id, departs: departs, time: limaTime(departs), capacity: row.capacity, booked: row.booked, vehicle: { es: row.vehicle_es, en: row.vehicle_en }, direction: row.direction, status: status, delay: delay };
     });
     stops = stopRows.map(function (row) { return { name: row.name, km: Number(row.km_from_talara), minutes: Number(row.minutes_from_talara) }; });
     fares = {};
@@ -324,7 +344,20 @@ function drawMyBookings(container, t) {
   box.innerHTML = `<h2>${t.myBookings}</h2>`;
 
   for (const b of myBookings) {
-    const when = dayLabel(b.boardAt, t) + " · " + formatTime(limaTime(b.boardAt), t);
+    // The driver may have changed this trip since it was booked (Stage 3).
+    // Older tickets have no tripId, so they show no status.
+    const slot = b.tripId ? slots.find(function (s) { return s.id === b.tripId; }) : null;
+    const shift = slot ? Math.round((new Date(slot.departs) - new Date(b.departs)) / 60000) : 0;
+    const boardAt = addMinutes(b.boardAt, shift);
+    const arriveAt = addMinutes(b.arriveAt, shift);
+    const tripStatus = slot ? slot.status : "scheduled";
+
+    let statusLine = "";
+    if (tripStatus === "cancelled") statusLine = t.ticketCancelled;
+    else if (tripStatus === "leaving") statusLine = t.ticketLeaving;
+    else if (tripStatus === "delayed") statusLine = t.ticketDelayed(slot.delay);
+
+    const when = dayLabel(boardAt, t) + " · " + formatTime(limaTime(boardAt), t);
     const fareText = b.fare != null ? money(b.fare) : null; // older tickets have no fare
     const waText = t.waMessage(b.code, when, b.from, b.to, b.name, fareText);
 
@@ -335,15 +368,16 @@ function drawMyBookings(container, t) {
         `<p class="form-message" role="alert"></p>` +
         `<button type="button" class="cancel-yes">${t.cancelYes}</button>` +
         `<button type="button" class="secondary cancel-no">${t.cancelNo}</button>`;
-    } else if (canCancel(b)) {
+    } else if (canCancel(b) && tripStatus !== "cancelled") {
       actions += `<button type="button" class="cancel-link">${t.cancelLink}</button>`;
     }
 
     const ticket = document.createElement("article");
-    ticket.className = "ticket";
+    ticket.className = "ticket" + (tripStatus === "cancelled" ? " ticket-cancelled" : "");
     ticket.innerHTML =
+      (statusLine ? `<p class="ticket-status ticket-status-${tripStatus}" role="status">${statusLine}</p>` : "") +
       `<p class="ticket-code">${b.code}</p>` +
-      `<p>${when} → ${formatTime(limaTime(b.arriveAt), t)}</p>` +
+      `<p>${when} → ${formatTime(limaTime(arriveAt), t)}</p>` +
       `<p>${b.from} → ${b.to} · ${escapeHtml(b.name)}</p>` +
       (fareText ? `<p>${fareText} · ${t.payInfo}</p>` : "") +
       `<p class="ticket-hint">${t.showDriver}</p>` +
@@ -415,6 +449,7 @@ function render() {
 
   const container = document.getElementById("slots");
   container.innerHTML = "";
+
 
   if (notice) {
     const note = document.createElement("p");
@@ -512,9 +547,12 @@ function render() {
       lastDay = day;
     }
 
-    const top =
+    let top =
       `<h2>${formatTime(limaTime(boardAt), t)} <span class="arrow">→</span> ${formatTime(limaTime(arriveAt), t)}</h2>` +
       `<p class="slot-route">${t.journey(from, to, arriveMin - boardMin, money(fare))}</p>`;
+    if (slot.status === "delayed") {
+      top += `<p class="trip-status status-delayed">${t.statusDelayed(slot.delay)}</p>`;
+    }
 
     // The seats-filling bar, the seat count, and when the van leaves the start of the line
     const almostFull = seatsLeft > 0 && seatsLeft <= 2;
@@ -527,11 +565,21 @@ function render() {
 
     const card = document.createElement("article");
     card.className = "slot";
-    if (almostFull) card.classList.add("slot-almost");
+    if (almostFull && slot.status !== "cancelled") card.classList.add("slot-almost");
 
-    if (seatsLeft <= 0) {
+    if (slot.status === "cancelled") {
+      // The driver cancelled it: show it greyed out, so riders know it isn't coming
+      card.classList.add("slot-cancelled");
+      card.innerHTML = top + `<p class="trip-status status-cancelled">${t.statusCancelled}</p>`;
+    } else if (slot.status === "leaving") {
+      card.classList.add("slot-leaving");
+      card.innerHTML = top + seatBar(slot.booked, slot.capacity) +
+        `<p class="trip-status status-leaving">${t.statusLeaving}</p>`;
+    } else if (seatsLeft <= 0 || slot.status === "full") {
       card.classList.add("slot-full");
-      card.innerHTML = top + seatBar(slot.booked, slot.capacity) + `<p>${t.full}</p>`;
+      card.innerHTML = top + seatBar(slot.booked, slot.capacity) +
+        (seatsLeft > 0 ? `<p class="trip-status">${t.statusFull}</p>` : "") +
+        `<p>${t.full}</p>`;
     } else if (openSlot === slot.id) {
       card.innerHTML =
         top +
@@ -573,6 +621,7 @@ function render() {
             if (result.status === "booked" && !myBookings.some(function (b) { return b.code === result.code; })) {
               myBookings.push({
                 code: result.code, name: name, from: from, to: to,
+                tripId: slot.id, // so the ticket can show the driver's updates (Stage 3)
                 boardAt: boardAt, arriveAt: arriveAt,
                 departs: slot.departs, // for the 30-minute cancel cut-off
                 fare: fare, // what the rider pays the driver
@@ -609,8 +658,9 @@ function render() {
     }
 
     container.appendChild(card);
-    if (openSlot === slot.id && seatsLeft > 0) {
-      card.querySelector("input").focus();
+    const nameInput = card.querySelector("input");
+    if (openSlot === slot.id && nameInput) {
+      nameInput.focus();
     }
   }
 }

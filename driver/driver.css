@@ -207,5 +207,108 @@ dd { margin: 0; overflow-wrap: anywhere; }
 
 #message { margin-top: 16px; min-height: 1.5em; }
 
+/* ---------- Driver dashboard ---------- */
+.muted { color: var(--muted); }
+.hint  { color: var(--muted); font-size: 0.85rem; margin: 6px 0 0; }
+
+.dash-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+button.small { padding: 6px 12px; font-size: 0.9rem; }
+
+#dash-note { font-size: 0.9rem; }
+#dash-message { min-height: 1.2em; font-weight: 600; }
+
+.dash-day {
+  font-size: 1rem;
+  margin: 14px 0 6px;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+.trip {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.trip.open { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.trip-cancelled { background: var(--grey-bg); }
+.trip-cancelled .trip-time { text-decoration: line-through; }
+
+/* The tappable summary line */
+.trip-summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 12px 14px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  border-radius: 0;
+}
+
+.trip-time   { font-size: 1.25rem; font-weight: 700; }
+.trip-route  { grid-column: 1; }
+.trip-count  { grid-column: 1; color: var(--muted); font-size: 0.9rem; }
+.trip-chevron { grid-column: 2; grid-row: 2 / 4; align-self: center; color: var(--muted); }
+.trip-badge  { grid-column: 2; grid-row: 1; justify-self: end; font-size: 0.8rem; }
+
+.badge-leaving   { background: var(--green-bg); color: var(--accent); }
+.badge-delayed   { background: var(--amber-bg); color: var(--amber); }
+.badge-full      { background: #e0ecff; color: #1d4ed8; }
+.badge-cancelled { background: var(--red-bg); color: var(--red); }
+
+.trip-detail {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--grey-bg);
+}
+
+/* Status buttons */
+.status-controls { padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.status-controls p { margin: 0; }
+.status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.status-grid button { padding: 12px 8px; }
+.button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ask { font-weight: 600; }
+
+button.chosen { outline: 3px solid var(--amber); outline-offset: 1px; }
+button.danger { background: var(--red); }
+button.danger-outline { background: #fff; color: var(--red); border: 1px solid var(--red); }
+
+/* Passengers */
+.passengers h4 { margin: 16px 0 0; font-size: 1.05rem; }
+.stop-heading { margin: 12px 0 4px; font-size: 0.95rem; }
+.passenger-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.passenger label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.passenger input[type="checkbox"] { width: 26px; height: 26px; flex-shrink: 0; accent-color: var(--accent); }
+.passenger.boarded label { background: var(--green-bg); border-color: var(--accent); }
+.passenger-text { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; }
+.passenger .code { font-family: ui-monospace, monospace; font-size: 0.9rem; margin-left: auto; }
+
+/* Add a departure */
+#add-toggle { width: 100%; margin-top: 4px; }
+#add-form { display: flex; flex-direction: column; gap: 6px; }
+#add-btn { margin-top: 10px; }
+
 /* .card uses display:flex, so make "hidden" win */
 [hidden] { display: none !important; }

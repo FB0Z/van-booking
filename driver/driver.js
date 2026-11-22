@@ -1,6 +1,7 @@
 // Driver page — Stage 3.
 // Step 1: login. Step 2a: driver profile + verification status.
 // Step 2b: proof photos (licence, SOAT, vehicle) in a private storage folder.
+// Steps 3 + 4: verified drivers get their departures and passengers (dashboard.js).
 // Uses SUPABASE_URL and SUPABASE_KEY from ../stage1/config.js.
 // Plain fetch to Supabase, same style as the rider page (no library).
 
@@ -42,7 +43,7 @@ const TEXTS = {
     badge_rejected: "No aprobado",
     badge_suspended: "Suspendido",
     text_pending: "Estamos revisando tus datos. Cuando estés verificado, aquí verás tus viajes y pasajeros.",
-    text_verified: "Estás verificado. Pronto verás aquí tus viajes y pasajeros.",
+    text_verified: "Estás verificado. Tus salidas y pasajeros están arriba.",
     text_rejected: "No pudimos aprobar tus datos. Corrígelos y envíalos de nuevo.",
     text_suspended: "Tu cuenta está suspendida. Contacta al equipo para más información.",
     note: "Nota del equipo:",
@@ -110,7 +111,7 @@ const TEXTS = {
     badge_rejected: "Not approved",
     badge_suspended: "Suspended",
     text_pending: "We're checking your details. Once you're verified, your trips and passengers will appear here.",
-    text_verified: "You're verified. Your trips and passengers will appear here soon.",
+    text_verified: "You're verified. Your departures and passengers are above.",
     text_rejected: "We couldn't approve your details. Please correct them and send them again.",
     text_suspended: "Your account is suspended. Please contact the team for more information.",
     note: "Note from the team:",
@@ -348,6 +349,7 @@ function showLogin() {
   currentSession = null;
   driver = null;
   docs = null;
+  if (typeof hideDashboard === "function") hideDashboard();
   Object.values(previews).forEach((url) => URL.revokeObjectURL(url));
   previews = {};
   signedIn.hidden = true;
@@ -368,6 +370,7 @@ function renderSignedIn() {
   welcome.textContent = t("welcome") + " " + currentSession.email;
   fillVehicleOptions();
   if (!statusCard.hidden && driver) renderStatusCard();
+  if (typeof renderDashboard === "function") renderDashboard();
   profileIntro.textContent = t(driver && driver.status === "verified" ? "editVerifiedWarn" : "profileIntro");
 }
 
@@ -412,6 +415,8 @@ async function loadProfile() {
     say("");
     if (driver) showStatusCard();
     else startEditing();
+    // Verified drivers also get their departures (dashboard.js); everyone else doesn't
+    if (typeof loadDashboard === "function") loadDashboard();
   } catch (err) {
     sayProblem(err);
   }

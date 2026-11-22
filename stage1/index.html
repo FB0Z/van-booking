@@ -3,18 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Van Lobitos → Talara</title>
+  <title>Van Lobitos ↔ Talara</title>
+  <meta name="theme-color" content="#153846">
+  <!-- Bungee: a typeface made for street signs, used only for the route board and times.
+       With no signal the page uses a plain bold font instead. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&display=swap">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="costa.css">
 </head>
 <body>
+  <header class="hero">
+    <div class="hero-inner">
+      <button id="lang-button" class="lang">English</button>
+      <h1 id="title" class="visually-hidden">Van Lobitos ↔ Talara</h1>
+      <!-- The destination board from a colectivo van's windscreen, in Peru's colours.
+           board.js changes it to the rider's own trip when they choose From and To. -->
+      <div id="route-board" class="route-board" aria-hidden="true">
+        <p class="board-main"><span>Lobitos</span><span class="board-arrow">⇄</span><span>Talara</span></p>
+        <p class="board-via">vía Sichez · Piedritas</p>
+      </div>
+      <p id="intro">Reserva tu asiento y sabe si la van sale.</p>
+      <!-- The Costanera corridor as a line, each stop placed by its distance along the road
+           (Lobitos 17.7 km, Sichez 13 km, Piedritas 8 km, Talara 0 km from Talara).
+           board.js lights up the rider's trip in red. -->
+      <div id="corridor" class="corridor" aria-hidden="true">
+        <div class="corridor-track"><div class="corridor-trip"></div></div>
+        <ol>
+          <li data-stop="Lobitos" style="--at: 0"><span>Lobitos</span></li>
+          <li data-stop="Sichez" style="--at: 0.266"><span>Sichez</span></li>
+          <li data-stop="Piedritas" style="--at: 0.548"><span>Piedritas</span></li>
+          <li data-stop="Talara" style="--at: 1"><span>Talara</span></li>
+        </ol>
+      </div>
+    </div>
+  </header>
+
   <main>
-    <button id="lang-button" class="lang">English</button>
-    <h1 id="title">Van Lobitos → Talara</h1>
-    <p id="intro">Reserva tu asiento y sabe si la van sale.</p>
     <div id="slots"></div>
     <p class="driver-link"><a id="driver-link" href="../driver/">¿Eres conductor? Entra aquí</a></p>
   </main>
   <script src="config.js"></script>
   <script src="app.js"></script>
+  <script src="board.js"></script>
 </body>
 </html>

@@ -40,7 +40,7 @@ const texts = {
     showDriver: "Muestra este código al chofer.",
     whatsapp: "Enviar por WhatsApp",
     waMessage: (code, when, from, to, name, fare) =>
-      "✅ Van reservada\nCódigo: " + code + "\n" + when + "\n" + from + " → " + to + "\nNombre: " + name +
+      "Van reservada\nCódigo: " + code + "\n" + when + "\n" + from + " → " + to + "\nNombre: " + name +
       (fare ? "\nPrecio: " + fare + " (efectivo o Yape/Plin)" : ""),
     cancelLink: "Cancelar reserva",
     cancelQuestion: "¿Cancelar esta reserva?",
@@ -50,15 +50,15 @@ const texts = {
     tooLate: "Ya no se puede cancelar: faltan menos de 30 minutos para la salida. Avisa al chofer.",
     cancelError: "No se pudo cancelar. Revisa tu señal e intenta de nuevo.",
     // Trip status, set by the driver (Stage 3)
-    statusLeaving: "🚐 La van está saliendo ahora. Ya no se puede reservar.",
-    statusDelayed: (m) => "⏱ Retraso de unos " + m + " min. Las horas ya incluyen el retraso.",
+    statusLeaving: "La van está saliendo ahora. Ya no se puede reservar.",
+    statusDelayed: (m) => "Retraso de unos " + m + " min. Las horas ya incluyen el retraso.",
     statusFull: "El chofer marcó la van como llena.",
-    statusCancelled: "✖ El chofer canceló esta salida.",
-    ticketCancelled: "⚠ El chofer canceló esta salida. Elige otra salida abajo.",
-    ticketDelayed: (m) => "⏱ La van va con unos " + m + " min de retraso. Las horas ya están actualizadas.",
-    ticketLeaving: "🚐 La van ya está saliendo.",
+    statusCancelled: "El chofer canceló esta salida.",
+    ticketCancelled: "El chofer canceló esta salida. Elige otra salida abajo.",
+    ticketDelayed: (m) => "La van va con unos " + m + " min de retraso. Las horas ya están actualizadas.",
+    ticketLeaving: "La van ya está saliendo.",
     // Road alerts and the driver on the ticket (Stage 3)
-    alertTitles: { closed: "🚧 Carretera cerrada", warning: "⚠ Precaución en la carretera", info: "ℹ Aviso" },
+    alertTitles: { closed: "Carretera cerrada", warning: "Precaución en la carretera", info: "Aviso" },
     alertPosted: (when) => "Publicado por un chofer · " + when,
     alertsOffline: (when) => "Sin señal: avisos revisados por última vez: " + when,
     driverLine: (name, plate) => "Tu chofer: " + name + " · placa " + plate,
@@ -104,7 +104,7 @@ const texts = {
     showDriver: "Show this code to the driver.",
     whatsapp: "Send to WhatsApp",
     waMessage: (code, when, from, to, name, fare) =>
-      "✅ Van booked\nCode: " + code + "\n" + when + "\n" + from + " → " + to + "\nName: " + name +
+      "Van booked\nCode: " + code + "\n" + when + "\n" + from + " → " + to + "\nName: " + name +
       (fare ? "\nFare: " + fare + " (cash or Yape/Plin)" : ""),
     cancelLink: "Cancel booking",
     cancelQuestion: "Cancel this booking?",
@@ -114,15 +114,15 @@ const texts = {
     tooLate: "It's too late to cancel online: the van leaves in less than 30 minutes. Please tell the driver.",
     cancelError: "Could not cancel. Check your signal and try again.",
     // Trip status, set by the driver (Stage 3)
-    statusLeaving: "🚐 The van is leaving now. Booking is closed.",
-    statusDelayed: (m) => "⏱ Running about " + m + " min late. Times already include the delay.",
+    statusLeaving: "The van is leaving now. Booking is closed.",
+    statusDelayed: (m) => "Running about " + m + " min late. Times already include the delay.",
     statusFull: "The driver has marked this van as full.",
-    statusCancelled: "✖ The driver cancelled this departure.",
-    ticketCancelled: "⚠ The driver cancelled this departure. Please choose another one below.",
-    ticketDelayed: (m) => "⏱ The van is running about " + m + " min late. Times are updated.",
-    ticketLeaving: "🚐 The van is leaving now.",
+    statusCancelled: "The driver cancelled this departure.",
+    ticketCancelled: "The driver cancelled this departure. Please choose another one below.",
+    ticketDelayed: (m) => "The van is running about " + m + " min late. Times are updated.",
+    ticketLeaving: "The van is leaving now.",
     // Road alerts and the driver on the ticket (Stage 3)
-    alertTitles: { closed: "🚧 Road closed", warning: "⚠ Take care on the road", info: "ℹ Notice" },
+    alertTitles: { closed: "Road closed", warning: "Take care on the road", info: "Notice" },
     alertPosted: (when) => "Posted by a driver · " + when,
     alertsOffline: (when) => "No signal: alerts last checked: " + when,
     driverLine: (name, plate) => "Your driver: " + name + " · plate " + plate,
@@ -625,7 +625,7 @@ function render() {
     }
 
     let top =
-      `<h2>${formatTime(limaTime(boardAt), t)} <span class="arrow">→</span> ${formatTime(limaTime(arriveAt), t)}</h2>` +
+      `<h2><span class="t">${formatTime(limaTime(boardAt), t)}</span> <span class="arrow">→</span> <span class="t">${formatTime(limaTime(arriveAt), t)}</span></h2>` +
       `<p class="slot-route">${t.journey(from, to, arriveMin - boardMin, money(fare))}</p>`;
     if (slot.status === "delayed") {
       top += `<p class="trip-status status-delayed">${t.statusDelayed(slot.delay)}</p>`;

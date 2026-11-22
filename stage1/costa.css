@@ -1,0 +1,403 @@
+/* Costa Norte: the look of the rider page. Loaded after style.css.
+   Built on Dawood's peru-coast.css: his colours (ink, teal, Peru red, sand)
+   and his idea of the Peruvian flag. Added on top:
+   - the route board from a colectivo windscreen, in the flag's red and white
+   - the Costanera corridor as a line, each stop placed by its distance
+   - a stepped-wave border, from the wave friezes of northern Peru's coastal cultures
+   - no emojis: colour, shape and words carry the meaning */
+
+:root {
+  /* Dawood's palette */
+  --ink: #153846;        /* text, header, times */
+  --teal: #00695e;       /* main buttons, booked seats, the sea */
+  --rojo: #ac253a;       /* Peru red: the board, arrows, cancelled */
+  --sand: #f6f1e7;       /* page: the desert coast */
+  --line: #c7d5cf;
+  /* added */
+  --forest: #2f6b3a;     /* dry-forest green: confirmed */
+  --amber: #b26a00;      /* delays */
+  --sign: "Bungee", "Arial Black", "Impact", system-ui, sans-serif;
+}
+
+body {
+  background: var(--sand);
+  color: var(--ink);
+}
+
+main {
+  max-width: 520px;
+  padding-top: 6px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- Header: night-blue band, route board, corridor line ---------- */
+.hero {
+  background: var(--ink);
+  color: #fff;
+}
+
+.hero-inner {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 14px 16px 10px;
+}
+
+.hero .lang {
+  display: block;
+  margin: 0 0 14px auto;
+  min-height: 40px;
+  background: transparent;
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  font-size: 0.95rem;
+}
+
+/* The board: white plate between two red bands, like the Peruvian flag */
+.route-board {
+  position: relative;
+  padding: 12px 34px 10px;
+  background: #fff;
+  border-radius: 8px;
+  color: var(--rojo);
+  text-align: center;
+  overflow: hidden;
+}
+
+.route-board::before,
+.route-board::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  background: var(--rojo);
+}
+.route-board::before { left: 0; }
+.route-board::after { right: 0; }
+
+.route-board p { margin: 0; }
+
+/* the two ends of the trip, big, in the sign typeface */
+.board-main {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0 0.3em;
+  font-family: var(--sign);
+  font-size: clamp(1.45rem, 7.6vw, 2.2rem);
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.board-arrow {
+  color: var(--ink);
+  font-family: system-ui, sans-serif;
+  font-weight: 900;
+}
+
+/* the stops in between, small, like the "vía" line on a real board */
+.board-via {
+  margin-top: 6px !important;
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+#intro {
+  margin: 12px 0 0;
+  color: #d4e2e6;
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+/* The Costanera corridor as a line: a dot for each stop, placed by distance.
+   --at is how far along the line the stop is (0 = Lobitos, 1 = Talara). */
+.corridor {
+  --dot: 18px;
+  position: relative;
+  height: 58px;
+  margin: 18px 4px 6px;
+}
+
+.corridor-track {
+  position: absolute;
+  top: calc(var(--dot) / 2 - 3px);
+  left: calc(var(--dot) / 2);
+  right: calc(var(--dot) / 2);
+  height: 6px;
+  border-radius: 3px;
+  background: #5d7d89;
+}
+
+/* the rider's trip, in red; board.js sets --a and --b */
+.corridor-trip {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: calc(100% * var(--a, 0));
+  width: calc(100% * (var(--b, 1) - var(--a, 0)));
+  border-radius: 4px;
+  background: var(--rojo);
+  transition: left 0.25s, width 0.25s;
+}
+
+.corridor ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.corridor li {
+  position: absolute;
+  top: 0;
+  left: calc(var(--dot) / 2 + (100% - var(--dot)) * var(--at));
+}
+
+/* the stop's dot */
+.corridor li::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--dot) / -2);
+  width: var(--dot);
+  height: var(--dot);
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 3px solid #9fb5bd;
+}
+
+/* the stop's name, under the dot */
+.corridor li span {
+  position: absolute;
+  top: calc(var(--dot) + 6px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #c4d4d9;
+}
+/* the first and last names line up with the ends, so they never run off the screen */
+.corridor li:first-child span { transform: none; left: calc(var(--dot) / -2); }
+.corridor li:last-child span { transform: translateX(-100%); left: calc(var(--dot) / 2); }
+
+/* stops on the rider's trip: white dot; the two ends: red dot and white name */
+.corridor li.on::before { background: #fff; border-color: #fff; }
+.corridor li.end::before { background: var(--rojo); border-color: #fff; }
+.corridor li.on span { color: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .corridor-trip { transition: none; }
+}
+
+/* Stepped-wave border: the sea pattern of the ancient coastal cultures of
+   northern Peru (the wave friezes at Chan Chan) */
+.hero::after {
+  content: "";
+  display: block;
+  height: 14px;
+  background-color: var(--sand);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='14' viewBox='0 0 36 14'%3E%3Cpath fill='%2300695e' d='M0 14V9h4V6h4V3h4V0h18v10h-9V5h4v2h2V3H15v8h21v3z'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: left bottom;
+}
+
+/* ---------- Road alerts: unmissable, no emojis needed ---------- */
+.road-alert {
+  position: relative;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  padding-top: 20px;
+}
+
+/* road closed = caution tape across the top */
+.road-alert-closed::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 10px;
+  background: repeating-linear-gradient(-45deg, #f2c200 0 12px, var(--ink) 12px 24px);
+}
+.road-alert-closed { background: #fbe4e6; color: #7d1527; }
+.road-alert-warning { background: #fff1d1; color: #6b4200; box-shadow: inset 0 6px 0 var(--amber); }
+.road-alert-info { background: #e4eef0; color: var(--ink); box-shadow: inset 0 6px 0 var(--teal); }
+.road-alert-title { font-size: 1.15rem; }
+
+/* ---------- The saved ticket: a printed bus ticket (boleto) ---------- */
+.my-bookings h2 { font-size: 1rem; color: var(--ink); }
+
+.ticket {
+  position: relative;
+  background: #fff;
+  color: var(--ink);
+  border: 0;
+  border-top: 6px solid var(--teal);
+  border-radius: 4px;
+  padding: 16px 20px;
+}
+
+/* the punched holes on each side, cut in the page colour */
+.ticket::before,
+.ticket::after {
+  content: "";
+  position: absolute;
+  top: 64px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--sand);
+}
+.ticket::before { left: -11px; }
+.ticket::after { right: -11px; }
+
+.ticket-code {
+  font-family: var(--sign);
+  font-weight: 400;
+  font-size: 2rem;
+  letter-spacing: 1px;
+  color: var(--rojo);
+  padding-bottom: 10px;
+  margin-bottom: 10px !important;
+  border-bottom: 2px dashed var(--line);
+}
+
+.ticket .ticket-driver { color: var(--forest); }
+.ticket-status { border-radius: 6px; }
+
+.whatsapp {
+  background: #fff;
+  border: 2px solid var(--teal);
+  color: var(--teal);
+}
+
+.ticket-cancelled { background: #efeae0; border-top-color: var(--rojo); }
+.ticket-cancelled .ticket-code { color: #8b8b84; text-decoration: line-through; }
+
+/* ---------- From / To ---------- */
+#slots .where {
+  background: #fff;
+  border: 0;
+  border-top: 5px solid var(--ink);
+  border-radius: 6px;
+}
+
+.where-stops label { font-weight: 700; color: var(--ink); }
+
+.where-stops select {
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 600;
+  min-height: 50px;
+  padding: 10px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.where .swap {
+  width: 52px;
+  height: 52px;
+  background: var(--ink);
+  color: #fff;
+}
+
+/* ---------- Day headings: Dawood's red bar ---------- */
+.day-heading {
+  margin: 24px 0 4px;
+  padding: 2px 0 2px 10px;
+  border: 0;
+  border-left: 5px solid var(--rojo);
+  color: var(--ink);
+  font-size: 1.05rem;
+}
+
+/* ---------- Departure cards: a timetable entry ---------- */
+.slot {
+  background: #fff;
+  border: 0;
+  border-left: 6px solid var(--teal);
+  border-radius: 4px 10px 10px 4px;
+  margin-top: 12px;
+}
+
+.slot h2 { margin: 0 0 2px; line-height: 1.15; }
+.slot h2 .t { white-space: nowrap; }
+
+/* the departure time is the biggest thing on the card */
+.slot h2 .t:first-child {
+  display: block;
+  font-family: var(--sign);
+  font-weight: 400;
+  font-size: clamp(1.7rem, 8vw, 2.2rem);
+  color: var(--ink);
+}
+
+/* "→ 7:45 a. m.": the arrival, smaller, on the line below */
+.slot h2 .arrow,
+.slot h2 .t + .arrow + .t { font-size: 1.05rem; font-weight: 700; color: var(--ink); }
+.slot h2 .arrow { color: var(--rojo); }
+
+.slot .slot-route { font-size: 0.95rem; color: #4b6169; }
+
+/* seats: one block per seat */
+.seat { height: 14px; border-radius: 3px; border-color: #8fa8a4; }
+.seat-taken { background: var(--teal); border-color: var(--teal); }
+.slot-almost .seat-taken { background: var(--amber); border-color: var(--amber); }
+
+/* buttons: teal with white text (Dawood's colour) */
+button { background: var(--ink); }
+
+button.book-button,
+.book-form button[type="submit"] {
+  background: var(--teal);
+  color: #fff;
+  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.2);
+  font-weight: 800;
+}
+
+.book-form input {
+  border: 2px solid var(--ink);
+  font-size: 1.05rem;
+}
+
+.book-form .secondary {
+  background: #fff;
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  box-shadow: none;
+}
+
+/* a full van is a confirmed van: green */
+.slot-full { background: #e6f1e6; border-left-color: var(--forest); }
+.slot-full p { color: var(--forest); }
+.slot-full .seat-taken { background: var(--forest); border-color: var(--forest); }
+
+/* the driver's updates on a card */
+.slot .trip-status { border-radius: 6px; }
+.slot .status-delayed { background: #fff1d1; color: #6b4200; }
+.slot .status-leaving { background: #e6f1e6; color: var(--forest); }
+.slot .status-cancelled { background: #fbe4e6; color: #7d1527; }
+.slot-leaving { border-left-color: var(--forest); }
+.slot-cancelled { background: #ece8df; border-left-color: var(--rojo); }
+.slot-cancelled h2 .t,
+.slot-cancelled h2 .t:first-child { color: #8b8b84; text-decoration: line-through; }
+.slot-cancelled h2 .arrow { color: #8b8b84; }
+
+/* ---------- Bits and pieces ---------- */
+.notice-booked { background: #e6f1e6; color: var(--forest); border-color: var(--forest); }
+.driver-link a { color: var(--ink); }
+
+:focus-visible {
+  outline: 3px solid var(--rojo);
+  outline-offset: 2px;
+}

@@ -294,3 +294,28 @@ button {
   border-color: #b42318;
   color: #4a4a46;
 }
+
+/* Road alerts from drivers (Stage 3) */
+.road-alert {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 2px solid #9aa4b2;
+  background: #eef2f7;
+  color: #1f2933;
+}
+.road-alert p { margin: 0 0 4px; }
+.road-alert-title { font-weight: 800; font-size: 1.1rem; }
+.road-alert-text { font-size: 1.05rem; }
+.road-alert-time { font-size: 0.85rem; opacity: 0.8; margin-bottom: 0; }
+.road-alert-closed  { background: #fde8e7; border-color: #b42318; color: #7a1610; }
+.road-alert-warning { background: #fff4e0; border-color: #d98200; color: #6b4200; }
+.road-alert-info    { background: #e8f0ff; border-color: #0b5fff; color: #0b3a99; }
+.alerts-offline { margin: 0 0 12px; font-size: 0.9rem; color: #555; }
+
+/* The driver on the ticket */
+.ticket .ticket-driver { font-weight: 700; }
+
+/* Small link for drivers at the bottom */
+.driver-link { margin: 32px 0 16px; text-align: center; font-size: 0.9rem; }
+.driver-link a { color: #555; }

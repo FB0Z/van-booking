@@ -63,6 +63,30 @@
         </form>
       </section>
 
+      <!-- Verified drivers: road alerts for riders (alerts.js) -->
+      <section id="alerts-card" class="card" hidden>
+        <h2 id="alerts-title">Avisos de la carretera</h2>
+        <p id="alerts-intro" class="muted"></p>
+        <form id="alert-form">
+          <label for="alert-preset" data-at="presets">Mensajes rápidos</label>
+          <select id="alert-preset"></select>
+
+          <label for="alert-text" data-at="message">Mensaje</label>
+          <textarea id="alert-text" rows="3" maxlength="200" required></textarea>
+
+          <label for="alert-level" data-at="level">Tipo de aviso</label>
+          <select id="alert-level"></select>
+
+          <label for="alert-hours" data-at="hours">Mostrar durante</label>
+          <select id="alert-hours"></select>
+
+          <button id="alert-btn" type="submit">Publicar aviso</button>
+        </form>
+        <p id="alert-status" role="status"></p>
+        <h3 id="my-alerts-title">Tus avisos activos</h3>
+        <ul id="my-alerts"></ul>
+      </section>
+
       <!-- Their status and details -->
       <div id="status-card" class="card" hidden>
         <p id="status-badge" class="badge"></p>
@@ -119,5 +143,6 @@
   <script src="../stage1/config.js"></script>
   <script src="driver.js"></script>
   <script src="dashboard.js"></script>
+  <script src="alerts.js"></script>
 </body>
 </html>

@@ -305,6 +305,37 @@ button.danger-outline { background: #fff; color: var(--red); border: 1px solid v
 .passenger-text { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; }
 .passenger .code { font-family: ui-monospace, monospace; font-size: 0.9rem; margin-left: auto; }
 
+/* Road alerts */
+#alert-form { display: flex; flex-direction: column; gap: 6px; }
+#alert-form textarea {
+  font: inherit;
+  font-size: 1rem;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  resize: vertical;
+}
+#alert-btn { margin-top: 10px; }
+#alert-status { min-height: 1.2em; font-weight: 600; margin: 4px 0; }
+#my-alerts-title { font-size: 1rem; margin: 8px 0 4px; }
+#my-alerts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+
+.my-alert {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 5px solid var(--border);
+  background: var(--bg);
+}
+.my-alert p { margin: 2px 0; }
+.my-alert-closed  { border-left-color: var(--red); }
+.my-alert-warning { border-left-color: var(--amber); }
+.my-alert-info    { border-left-color: #1d4ed8; }
+.my-alert button { flex-shrink: 0; }
+
 /* Add a departure */
 #add-toggle { width: 100%; margin-top: 4px; }
 #add-form { display: flex; flex-direction: column; gap: 6px; }

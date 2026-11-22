@@ -2,6 +2,7 @@
 // Step 1: login. Step 2a: driver profile + verification status.
 // Step 2b: proof photos (licence, SOAT, vehicle) in a private storage folder.
 // Steps 3 + 4: verified drivers get their departures and passengers (dashboard.js).
+// Step 5: verified drivers post road alerts for riders (alerts.js).
 // Uses SUPABASE_URL and SUPABASE_KEY from ../stage1/config.js.
 // Plain fetch to Supabase, same style as the rider page (no library).
 
@@ -350,6 +351,7 @@ function showLogin() {
   driver = null;
   docs = null;
   if (typeof hideDashboard === "function") hideDashboard();
+  if (typeof hideAlerts === "function") hideAlerts();
   Object.values(previews).forEach((url) => URL.revokeObjectURL(url));
   previews = {};
   signedIn.hidden = true;
@@ -371,6 +373,7 @@ function renderSignedIn() {
   fillVehicleOptions();
   if (!statusCard.hidden && driver) renderStatusCard();
   if (typeof renderDashboard === "function") renderDashboard();
+  if (typeof renderAlerts === "function") renderAlerts();
   profileIntro.textContent = t(driver && driver.status === "verified" ? "editVerifiedWarn" : "profileIntro");
 }
 
@@ -417,6 +420,7 @@ async function loadProfile() {
     else startEditing();
     // Verified drivers also get their departures (dashboard.js); everyone else doesn't
     if (typeof loadDashboard === "function") loadDashboard();
+    if (typeof loadAlerts === "function") loadAlerts();
   } catch (err) {
     sayProblem(err);
   }

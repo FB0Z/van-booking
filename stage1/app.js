@@ -56,7 +56,13 @@ const texts = {
     statusCancelled: "✖ El chofer canceló esta salida.",
     ticketCancelled: "⚠ El chofer canceló esta salida. Elige otra salida abajo.",
     ticketDelayed: (m) => "⏱ La van va con unos " + m + " min de retraso. Las horas ya están actualizadas.",
-    ticketLeaving: "🚐 La van ya está saliendo."
+    ticketLeaving: "🚐 La van ya está saliendo.",
+    // Road alerts and the driver on the ticket (Stage 3)
+    alertTitles: { closed: "🚧 Carretera cerrada", warning: "⚠ Precaución en la carretera", info: "ℹ Aviso" },
+    alertPosted: (when) => "Publicado por un chofer · " + when,
+    alertsOffline: (when) => "Sin señal: avisos revisados por última vez: " + when,
+    driverLine: (name, plate) => "Tu chofer: " + name + " · placa " + plate,
+    driverLink: "¿Eres conductor? Entra aquí"
   },
   en: {
     title: "Van Lobitos ↔ Talara",
@@ -114,7 +120,13 @@ const texts = {
     statusCancelled: "✖ The driver cancelled this departure.",
     ticketCancelled: "⚠ The driver cancelled this departure. Please choose another one below.",
     ticketDelayed: (m) => "⏱ The van is running about " + m + " min late. Times are updated.",
-    ticketLeaving: "🚐 The van is leaving now."
+    ticketLeaving: "🚐 The van is leaving now.",
+    // Road alerts and the driver on the ticket (Stage 3)
+    alertTitles: { closed: "🚧 Road closed", warning: "⚠ Take care on the road", info: "ℹ Notice" },
+    alertPosted: (when) => "Posted by a driver · " + when,
+    alertsOffline: (when) => "No signal: alerts last checked: " + when,
+    driverLine: (name, plate) => "Your driver: " + name + " · plate " + plate,
+    driverLink: "Are you a driver? Sign in here"
   }
 };
 
@@ -130,6 +142,27 @@ let requestId = null; // one ID per booking attempt, so a retry can't book twice
 let cancelling = null; // the booking code whose "Cancel this booking?" step is open, or null
 let notice = null; // the message shown after a booking or cancel, or null
 let myBookings = loadMyBookings(); // this phone's bookings, saved in the browser
+let roadAlerts = loadSavedAlerts(); // { checkedAt, list }: the last road alerts this phone saw
+let alertsFresh = null; // true = just loaded, false = couldn't load (show "last checked"), null = loading
+
+// The last road alerts, saved so they still show with no signal
+function loadSavedAlerts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("roadAlerts") || "null");
+    if (saved && Array.isArray(saved.list)) return saved;
+  } catch (error) {
+    // storage blocked: start empty
+  }
+  return { checkedAt: null, list: [] };
+}
+
+function saveAlerts() {
+  try {
+    localStorage.setItem("roadAlerts", JSON.stringify(roadAlerts));
+  } catch (error) {
+    // Can't save on this phone: alerts still show while online
+  }
+}
 
 const CANCEL_CUTOFF_MINUTES = 30; // riders can cancel until 30 minutes before the van leaves
 
@@ -272,7 +305,10 @@ async function callRpc(name, params) {
 // Ask Supabase for the departures, stops and fares, then draw the page
 async function loadSlots() {
   status = "loading";
+  alertsFresh = null;
   render();
+  // Road alerts load alongside, but a problem with them never stops the departures from showing
+  const alertsRequest = callRpc("get_road_alerts").catch(function () { return null; });
   try {
     // All three requests go out at once; if any fails, the page shows "try again"
     const [slotRows, stopRows, fareRows] = await Promise.all([callRpc("get_slots"), callRpc("get_stops"), callRpc("get_fares")]);
@@ -281,7 +317,7 @@ async function loadSlots() {
       const status = row.status || "scheduled";
       const delay = status === "delayed" ? (row.delay_minutes || 0) : 0;
       const departs = addMinutes(row.departs_at, delay);
-      return { id: row.trip_id, departs: departs, time: limaTime(departs), capacity: row.capacity, booked: row.booked, vehicle: { es: row.vehicle_es, en: row.vehicle_en }, direction: row.direction, status: status, delay: delay };
+      return { id: row.trip_id, departs: departs, time: limaTime(departs), capacity: row.capacity, booked: row.booked, vehicle: { es: row.vehicle_es, en: row.vehicle_en }, direction: row.direction, status: status, delay: delay, driverName: row.driver_name || null, driverPlate: row.driver_plate || null };
     });
     stops = stopRows.map(function (row) { return { name: row.name, km: Number(row.km_from_talara), minutes: Number(row.minutes_from_talara) }; });
     fares = {};
@@ -298,7 +334,42 @@ async function loadSlots() {
     console.error(error);
     status = "error";
   }
+  const alertRows = await alertsRequest;
+  if (alertRows) {
+    roadAlerts = { checkedAt: new Date().toISOString(), list: alertRows };
+    saveAlerts();
+    alertsFresh = true;
+  } else {
+    alertsFresh = false;
+  }
   render();
+}
+
+// Road alerts from drivers, at the top of the page. Shown from the phone's copy with no signal.
+function drawAlerts(container, t) {
+  const now = new Date();
+  const list = roadAlerts.list.filter(function (a) { return new Date(a.expires_at) > now; });
+
+  for (const a of list) {
+    const when = dayLabel(a.created_at, t) + " · " + formatTime(limaTime(a.created_at), t);
+    const box = document.createElement("section");
+    box.className = "road-alert road-alert-" + a.level;
+    box.setAttribute("role", "alert");
+    box.innerHTML =
+      `<p class="road-alert-title">${t.alertTitles[a.level] || t.alertTitles.info}</p>` +
+      `<p class="road-alert-text">${escapeHtml(a.message)}</p>` +
+      `<p class="road-alert-time">${t.alertPosted(when)}</p>`;
+    container.appendChild(box);
+  }
+
+  // Couldn't check just now: say how old the alerts above are (or that there were none)
+  if (alertsFresh === false && roadAlerts.checkedAt) {
+    const checked = roadAlerts.checkedAt;
+    const line = document.createElement("p");
+    line.className = "alerts-offline";
+    line.textContent = t.alertsOffline(dayLabel(checked, t) + " · " + formatTime(limaTime(checked), t));
+    container.appendChild(line);
+  }
 }
 
 // Ask the database to book one seat. It answers with a status and a booking code.
@@ -379,6 +450,9 @@ function drawMyBookings(container, t) {
       `<p class="ticket-code">${b.code}</p>` +
       `<p>${when} → ${formatTime(limaTime(arriveAt), t)}</p>` +
       `<p>${b.from} → ${b.to} · ${escapeHtml(b.name)}</p>` +
+      (slot && slot.driverName && slot.driverPlate
+        ? `<p class="ticket-driver">${t.driverLine(escapeHtml(slot.driverName), escapeHtml(slot.driverPlate))}</p>`
+        : "") +
       (fareText ? `<p>${fareText} · ${t.payInfo}</p>` : "") +
       `<p class="ticket-hint">${t.showDriver}</p>` +
       actions;
@@ -446,10 +520,13 @@ function render() {
   document.getElementById("title").textContent = t.title;
   document.getElementById("intro").textContent = t.intro;
   document.getElementById("lang-button").textContent = t.langButton;
+  document.getElementById("driver-link").textContent = t.driverLink;
 
   const container = document.getElementById("slots");
   container.innerHTML = "";
 
+  // Road alerts first: they matter most, and show even with no signal
+  drawAlerts(container, t);
 
   if (notice) {
     const note = document.createElement("p");

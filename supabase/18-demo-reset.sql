@@ -6,16 +6,21 @@
 --   * only the permanent "Prueba" bookings remain, none cancelled, none ticked "boarded"
 --   * no road alerts showing
 -- ONLY for test data: never run this once real riders book.
--- Change the email below if your test driver uses a different one.
+-- The test driver is test1@gmail.com. To use another, change it in step 2 below.
 
 -- 1. Bookings: keep only the permanent test bookings, untouched
 delete from public.bookings where first_name not like 'Prueba %';
 update public.bookings set cancelled_at = null, boarded_at = null;
 
 -- 2. Trips: back to normal, all with the test driver
+--    (only once that driver has saved their details on the driver page;
+--     before that, trips just stay without a driver)
 update public.trips
 set status = 'scheduled', delay_minutes = null, status_at = null,
-    driver_id = coalesce(driver_id, (select u.id from auth.users u where u.email = 'gdb@uop.com'));
+    driver_id = coalesce(driver_id, (select d.user_id
+                                     from public.drivers d
+                                     join auth.users u on u.id = d.user_id
+                                     where lower(u.email) = lower('test1@gmail.com')));
 
 -- 3. Trips start tomorrow (same as 17-move-trips-to-tomorrow.sql)
 update public.trips

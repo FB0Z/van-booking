@@ -1,0 +1,2 @@
+# Wi-Fi password and keys for the ESP32 kiosk: never commit
+van_kiosk/secrets.h
